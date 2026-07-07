@@ -1,0 +1,51 @@
+{
+  "users": {
+    "uid": "Firebase Auth UID",
+    "name": "張永朋",
+    "email": "user@example.com",
+    "role": "admin | user",
+    "team": "靛隊",
+    "level": "主任",
+    "active": true
+  },
+  "sales": {
+    "date": "2026-07-07",
+    "person": "張永朋",
+    "product": "BVA",
+    "premium": 500000,
+    "currency": "TWD",
+    "exchangeRate": 1,
+    "baseWeighted": 25000,
+    "extraWeighted": 0,
+    "totalWeighted": 25000,
+    "competitionId": "c1",
+    "createdBy": "uid",
+    "createdAt": "serverTimestamp"
+  },
+  "products": {
+    "name": "BVA",
+    "type": "躉繳",
+    "currency": "TWD | USD",
+    "rateType": "percent | multiple",
+    "rate": 0.05,
+    "active": true
+  },
+  "competitions": {
+    "name": "2026 下半年 新高峰",
+    "start": "2026-07-01",
+    "end": "2026-12-31",
+    "active": true
+  },
+  "officeGoals": {
+    "month": "2026-07",
+    "targetWeighted": 10000000
+  },
+  "auditLogs": {
+    "action": "create | update | delete",
+    "collection": "sales",
+    "before": {},
+    "after": {},
+    "userId": "uid",
+    "createdAt": "serverTimestamp"
+  }
+}

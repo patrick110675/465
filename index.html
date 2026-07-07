@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>新高峰競賽平台 V1.2</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="loginScreen" class="loginScreen">
+    <div class="loginCard">
+      <div class="peakLogo">⛰️</div>
+      <h1>新高峰競賽平台</h1>
+      <p>Peak Competition Platform V1.2</p>
+      <label>使用者<select id="loginUser"></select></label>
+      <button class="primary" id="loginBtn">進入平台</button>
+      <small>展示版使用本機資料；填入 Firebase 設定後可改為雲端同步。</small>
+    </div>
+  </div>
+
+  <div class="app" id="appRoot" hidden>
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">🏆</div>
+        <div><h1>新高峰</h1><p>競賽平台 V1.2</p></div>
+      </div>
+      <button class="nav active" data-page="home">🏠 首頁</button>
+      <button class="nav" data-page="upload">➕ 新增報件</button>
+      <button class="nav" data-page="rank">🏅 排行榜</button>
+      <button class="nav" data-page="bonus">💰 獎金</button>
+      <button class="nav" data-page="qr">📷 QR 活動</button>
+      <button class="nav" data-page="history">📚 歷史</button>
+      <button class="nav" data-page="admin">⚙️ 管理</button>
+      <div class="slogan">挑戰高峰<br><b>超越自己</b></div>
+    </aside>
+
+    <main>
+      <header>
+        <select id="competitionSelect"></select>
+        <span id="periodText"></span>
+        <span class="sync" id="syncText">本機模式</span>
+        <button class="ghost" id="logoutBtn">登出</button>
+        <span class="user" id="userText"></span>
+      </header>
+
+      <section id="home" class="page active">
+        <div class="hero-grid">
+          <div class="card hero"><h2>本期競賽總覽</h2><div class="cup">🏆</div><p id="countdown"></p></div>
+          <div class="card kpi"><span>總加權</span><b id="totalWeighted">0</b></div>
+          <div class="card kpi"><span>總實收</span><b id="totalPremium">0</b></div>
+          <div class="card kpi"><span>今日新增加權</span><b id="todayWeighted">0</b></div>
+          <div class="card dailyStar"><span>🌟 每日之星</span><b id="dailyStarName">尚無</b><small id="dailyStarValue">今日加權 0</small></div>
+        </div>
+        <div class="grid2">
+          <div class="card"><div class="title"><h3>通訊處目標</h3><button onclick="go('admin')">設定</button></div><div class="goal"><div class="circle" id="officeRate">0%</div><div><p>目標：<b id="officeGoal">0</b></p><p>目前：<b id="officeCurrent">0</b></p><p class="red">還差：<b id="officeGap">0</b></p></div></div><div class="bar"><span id="officeBar"></span></div></div>
+          <div class="card"><div class="title"><h3>我的高峰目標</h3><button onclick="go('admin')">設定</button></div><div class="goal"><div class="target">🎯</div><div><p>目標：<b id="myGoal">0</b></p><p>目前：<b id="myCurrent">0</b></p><p class="red">還差：<b id="myGap">0</b></p><p class="note">本月建議完成：<b id="monthNeed">0</b></p></div></div><div class="bar"><span id="myBar"></span></div></div>
+        </div>
+        <div class="card"><div class="title"><h3>我的獎金</h3><button onclick="go('bonus')">查看全部</button></div><div id="bonusHome" class="bonusGrid"></div></div>
+        <div class="grid3"><div class="card"><h3>個人 TOP 5</h3><div id="topPeople"></div></div><div class="card"><h3>今日戰況</h3><div id="todayFeed"></div></div><div class="card"><h3>本月提醒</h3><div id="reminders"></div></div></div>
+      </section>
+
+      <section id="upload" class="page"><div class="card"><h2>快速新增報件</h2><p class="note">只輸入報件日、業務員、商品、原始保費；系統自動計算匯率、固定加權、額外加權與總加權。</p><div class="form4"><label>報件日<input type="date" id="entryDate"></label><label>業務員<select id="entryPerson"></select></label><label>商品<select id="entryProduct"></select></label><label>原始保費<input type="number" id="entryPremium" placeholder="例如 500000"></label></div><div class="preview"><h3>系統試算</h3><p>換算台幣：<b id="previewTwd">0</b></p><p>固定加權：<b id="previewBase">0</b></p><p>額外加權：<b id="previewExtra">0</b></p><p>總加權：<b id="previewTotal">0</b></p></div><button class="primary" id="saveEntry">儲存業績</button></div></section>
+
+      <section id="rank" class="page"><div class="card"><h2>排行榜</h2><div class="filters"><select id="rankType"><option value="person">個人</option><option value="group">分組</option><option value="team">競賽隊伍</option><option value="product">商品</option><option value="level">職級</option></select><select id="rankMetric"><option value="weighted">加權</option><option value="premium">實收</option><option value="count">件數</option></select><button id="exportRank">匯出 CSV</button></div><div id="rankList"></div></div></section>
+
+      <section id="bonus" class="page"><div class="card"><h2>獎金進度</h2><div id="bonusPage" class="bonusGrid big"></div></div></section>
+
+      <section id="qr" class="page"><div class="grid2"><div class="card"><h2>QR 活動簽到</h2><p class="note">正式版可把活動連結產生 QR Code；目前可先直接簽到測試。</p><div class="form4"><label>活動<select id="checkEvent"></select></label><label>簽到人<select id="checkPerson"></select></label><label>狀態<select id="checkStatus"><option value="present">出席</option><option value="leave">請假</option></select></label><label>新朋友姓名<input id="friendName" placeholder="沒有可空白"></label></div><button class="primary" id="saveCheckin">儲存簽到</button><div id="qrLinkBox"></div></div><div class="card"><h2>出席率與新朋友</h2><div id="attendanceList"></div></div></div></section>
+
+      <section id="history" class="page"><div class="grid2"><div class="card"><h2>歷史資料中心</h2><p class="note">每筆業績保存當時計算結果，之後調整倍率或匯率不會影響歷史。</p><div id="historyList"></div></div><div class="card"><h2>修改紀錄</h2><div id="auditList"></div></div></div></section>
+
+      <section id="admin" class="page"><div class="title"><h2>管理後台</h2><button class="dangerBtn" id="resetData">重置示範資料</button></div><div class="adminGrid"><div class="card"><h3>人員</h3><div id="adminPeople"></div><button class="secondary" id="addPerson">新增人員</button></div><div class="card"><h3>競賽</h3><div id="adminCompetitions"></div><button class="secondary" id="addCompetition">新增競賽</button></div><div class="card"><h3>商品</h3><div id="adminProducts"></div><button class="secondary" id="addProduct">新增商品</button></div><div class="card"><h3>匯率</h3><div id="adminRates"></div><button class="secondary" id="addRate">新增匯率</button></div><div class="card"><h3>額外加權</h3><div id="adminExtra"></div><button class="secondary" id="addExtra">新增額外加權</button></div><div class="card"><h3>每月獎金活動</h3><div id="adminBonus"></div><button class="secondary" id="addBonus">新增獎金活動</button></div><div class="card"><h3>QR 活動</h3><div id="adminEvents"></div><button class="secondary" id="addEvent">新增活動</button></div><div class="card"><h3>通訊處目標</h3><label>月份<input type="month" id="officeMonth"></label><label>目標加權<input type="number" id="officeGoalInput"></label><button class="primary" id="saveOfficeGoal">儲存</button></div><div class="card"><h3>我的高峰目標</h3><label>目標加權<input type="number" id="myGoalInput"></label><button class="primary" id="saveMyGoal">儲存</button></div></div></section>
+    </main>
+  </div>
+
+  <div class="bottom" id="bottomNav" hidden><button class="nav active" data-page="home">🏠<small>首頁</small></button><button class="nav" data-page="qr">📷<small>QR</small></button><button class="nav plus" data-page="upload">＋</button><button class="nav" data-page="rank">🏆<small>排行</small></button><button class="nav" data-page="admin">⚙️<small>管理</small></button></div>
+  <script src="firebase-config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
