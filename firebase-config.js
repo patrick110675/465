@@ -1,10 +1,10 @@
-// Firebase 正式上線時，把 Firebase 專案設定貼在這裡。
-// 目前先保持空白，系統會使用瀏覽器本機資料模式。
+// 高峰競賽平台 Firebase 設定
 window.firebaseConfig = {
-  apiKey: '',
-  authDomain: '',
-  projectId: '',
-  storageBucket: '',
-  messagingSenderId: '',
-  appId: ''
+  apiKey: "AIzaSyBO8mmvnxfQQuiVltZsuq2KcLpri0Qdl4c",
+  authDomain: "team-587a0.firebaseapp.com",
+  projectId: "team-587a0",
+  storageBucket: "team-587a0.firebasestorage.app",
+  messagingSenderId: "935798543102",
+  appId: "1:935798543102:web:75c291f2f6c047caae8baf",
+  measurementId: "G-GGQJ4QGDX8"
 };
