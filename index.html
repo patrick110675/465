@@ -1,80 +1,103 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>新高峰競賽平台 V1.2</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>高峰競賽平台｜Peak Competition Platform</title>
   <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.3/dist/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
-  <div id="loginScreen" class="loginScreen">
-    <div class="loginCard">
-      <div class="peakLogo">⛰️</div>
-      <h1>新高峰競賽平台</h1>
-      <p>Peak Competition Platform V1.2</p>
-      <label>使用者<select id="loginUser"></select></label>
-      <button class="primary" id="loginBtn">進入平台</button>
-      <small>展示版使用本機資料；填入 Firebase 設定後可改為雲端同步。</small>
-    </div>
-  </div>
-
-  <div class="app" id="appRoot" hidden>
+  <div class="app-shell">
     <aside class="sidebar">
       <div class="brand">
-        <div class="logo">🏆</div>
-        <div><h1>新高峰</h1><p>競賽平台 V1.2</p></div>
+        <div class="logo">▲</div>
+        <div><strong>高峰競賽平台</strong><span>Peak Competition Platform</span></div>
       </div>
-      <button class="nav active" data-page="home">🏠 首頁</button>
-      <button class="nav" data-page="upload">➕ 新增報件</button>
-      <button class="nav" data-page="rank">🏅 排行榜</button>
-      <button class="nav" data-page="bonus">💰 獎金</button>
-      <button class="nav" data-page="qr">📷 QR 活動</button>
-      <button class="nav" data-page="history">📚 歷史</button>
-      <button class="nav" data-page="admin">⚙️ 管理</button>
-      <div class="slogan">挑戰高峰<br><b>超越自己</b></div>
+      <nav class="nav">
+        <button class="nav-item active" data-page="dashboard">🏠 首頁</button>
+        <button class="nav-item" data-page="sales">📝 每日報件</button>
+        <button class="nav-item" data-page="ranking">🏆 排行榜</button>
+        <button class="nav-item" data-page="history">📊 歷史資料</button>
+        <button class="nav-item" data-page="admin">⚙️ 管理中心</button>
+      </nav>
+      <button class="theme-entry" data-page="theme">🎨 外觀設定</button>
+      <div class="user-card"><div class="avatar">永</div><div><b>張永朋</b><small>業務主任</small></div></div>
     </aside>
 
-    <main>
-      <header>
-        <select id="competitionSelect"></select>
-        <span id="periodText"></span>
-        <span class="sync" id="syncText">本機模式</span>
-        <button class="ghost" id="logoutBtn">登出</button>
-        <span class="user" id="userText"></span>
+    <main class="main">
+      <header class="topbar">
+        <div><h1 id="pageTitle">高峰競賽平台 👋</h1><p id="competitionSubtitle">115下半年 新高峰競賽｜2026/07/02 - 2026/12/15</p></div>
+        <div class="top-actions"><input id="quickSearch" placeholder="快速搜尋：人員 / 商品 / 活動"/><button id="resetDemo">重置示範資料</button></div>
       </header>
 
-      <section id="home" class="page active">
-        <div class="hero-grid">
-          <div class="card hero"><h2>本期競賽總覽</h2><div class="cup">🏆</div><p id="countdown"></p></div>
-          <div class="card kpi"><span>總加權</span><b id="totalWeighted">0</b></div>
-          <div class="card kpi"><span>總實收</span><b id="totalPremium">0</b></div>
-          <div class="card kpi"><span>今日新增加權</span><b id="todayWeighted">0</b></div>
-          <div class="card dailyStar"><span>🌟 每日之星</span><b id="dailyStarName">尚無</b><small id="dailyStarValue">今日加權 0</small></div>
+      <section id="dashboard" class="page active">
+        <div class="grid kpi-row">
+          <article class="card kpi"><div class="icon blue">📈</div><div><span>今日加權</span><strong id="todayWeighted">0</strong><small id="todayWeightedHint">較昨日 +0%</small></div></article>
+          <article class="card kpi"><div class="icon green">💰</div><div><span>今日實收</span><strong id="todayPremium">0</strong><small>自動彙整今日報件</small></div></article>
+          <article class="card kpi star"><div class="icon gold">⭐</div><div><span>每日之星</span><strong id="dailyStar">尚無</strong><small id="dailyStarSub">今日加權第一名</small></div></article>
+          <article class="card kpi"><div class="icon purple">📦</div><div><span>今日件數</span><strong id="todayCount">0 件</strong><small>最新報件件數</small></div></article>
         </div>
-        <div class="grid2">
-          <div class="card"><div class="title"><h3>通訊處目標</h3><button onclick="go('admin')">設定</button></div><div class="goal"><div class="circle" id="officeRate">0%</div><div><p>目標：<b id="officeGoal">0</b></p><p>目前：<b id="officeCurrent">0</b></p><p class="red">還差：<b id="officeGap">0</b></p></div></div><div class="bar"><span id="officeBar"></span></div></div>
-          <div class="card"><div class="title"><h3>我的高峰目標</h3><button onclick="go('admin')">設定</button></div><div class="goal"><div class="target">🎯</div><div><p>目標：<b id="myGoal">0</b></p><p>目前：<b id="myCurrent">0</b></p><p class="red">還差：<b id="myGap">0</b></p><p class="note">本月建議完成：<b id="monthNeed">0</b></p></div></div><div class="bar"><span id="myBar"></span></div></div>
+
+        <div class="grid two">
+          <article class="card"><h2>🎯 通訊處進度</h2><div class="progress-meta"><span>本月目標 <b id="officeTarget">40,000,000</b></span><span>已完成 <b id="officeDone">0</b></span><span class="danger">還差 <b id="officeRemain">0</b></span></div><div class="progress"><i id="officeBar"></i></div><p>達成率 <b id="officeRate">0%</b></p></article>
+          <article class="card"><h2>🏆 我的競賽進度</h2><div class="mini-grid"><div class="mini-card"><b>新高峰</b><strong id="peakRate">0%</strong><div class="progress small"><i id="peakBar"></i></div><small id="peakRemain">還差 0</small></div><div class="mini-card purple-card"><b>新極峰</b><strong id="superRate">0%</strong><div class="progress small purple"><i id="superBar"></i></div><small id="superRemain">還差 0</small></div></div></article>
         </div>
-        <div class="card"><div class="title"><h3>我的獎金</h3><button onclick="go('bonus')">查看全部</button></div><div id="bonusHome" class="bonusGrid"></div></div>
-        <div class="grid3"><div class="card"><h3>個人 TOP 5</h3><div id="topPeople"></div></div><div class="card"><h3>今日戰況</h3><div id="todayFeed"></div></div><div class="card"><h3>本月提醒</h3><div id="reminders"></div></div></div>
+
+        <div class="grid three">
+          <article class="card"><h2>🎁 我的獎勵活動</h2><div id="bonusCards" class="stack"></div></article>
+          <article class="card"><h2>🏆 排行榜 Top 5</h2><div class="tabs"><button class="tab active" data-rank="person">個人</button><button class="tab" data-rank="team">隊伍</button><button class="tab" data-rank="product">商品</button></div><table><thead><tr><th>名次</th><th>名稱</th><th>加權</th></tr></thead><tbody id="top5Rows"></tbody></table><button class="link-btn" data-page="ranking">查看更多排行榜〉</button></article>
+          <article class="card"><h2>⚡ 今日戰況（最新5筆）</h2><table><thead><tr><th>時間</th><th>姓名</th><th>商品</th><th>加權</th></tr></thead><tbody id="latestRows"></tbody></table><button class="link-btn" data-page="sales">查看全部戰況〉</button></article>
+        </div>
+
+        <div class="quick-actions"><button data-page="sales">📝 新增報件</button><button data-admin-tab="import">☁️ 匯入業績</button><button data-page="ranking">📊 查看排行榜</button></div>
       </section>
 
-      <section id="upload" class="page"><div class="card"><h2>快速新增報件</h2><p class="note">只輸入報件日、業務員、商品、原始保費；系統自動計算匯率、固定加權、額外加權與總加權。</p><div class="form4"><label>報件日<input type="date" id="entryDate"></label><label>業務員<select id="entryPerson"></select></label><label>商品<select id="entryProduct"></select></label><label>原始保費<input type="number" id="entryPremium" placeholder="例如 500000"></label></div><div class="preview"><h3>系統試算</h3><p>換算台幣：<b id="previewTwd">0</b></p><p>固定加權：<b id="previewBase">0</b></p><p>額外加權：<b id="previewExtra">0</b></p><p>總加權：<b id="previewTotal">0</b></p></div><button class="primary" id="saveEntry">儲存業績</button></div></section>
+      <section id="sales" class="page">
+        <div class="card"><div class="section-head"><h2>📝 每日報件</h2><div><button id="exportSales">匯出 Excel</button><button id="printSales">PDF 報表</button></div></div>
+          <form id="saleForm" class="form-grid">
+            <input type="date" id="saleDate" required />
+            <select id="saleUser" required></select>
+            <select id="saleProduct" required></select>
+            <input type="number" id="salePremium" placeholder="原始保費" required />
+            <button type="submit">新增報件</button>
+          </form>
+          <div class="filters"><input type="date" id="filterDate"/><select id="filterUnit"><option value="">全部區單位</option></select><select id="filterTeam"><option value="">全部隊伍</option></select><select id="filterRole"><option value="">全部職級</option></select><button id="clearFilters">清除篩選</button></div>
+          <table><thead><tr><th>姓名</th><th>加權計績</th><th>實收</th><th>A&H</th><th>原始加權</th><th>操作</th></tr></thead><tbody id="dailyRows"></tbody><tfoot><tr><th>總和</th><th id="sumWeighted">0</th><th id="sumPremium">0</th><th id="sumAH">0</th><th id="sumOriginal">0</th><th></th></tr></tfoot></table>
+        </div>
+      </section>
 
-      <section id="rank" class="page"><div class="card"><h2>排行榜</h2><div class="filters"><select id="rankType"><option value="person">個人</option><option value="group">分組</option><option value="team">競賽隊伍</option><option value="product">商品</option><option value="level">職級</option></select><select id="rankMetric"><option value="weighted">加權</option><option value="premium">實收</option><option value="count">件數</option></select><button id="exportRank">匯出 CSV</button></div><div id="rankList"></div></div></section>
+      <section id="ranking" class="page"><div class="card"><div class="section-head"><h2>🏆 排行榜</h2><div><select id="rankingType"><option value="person">個人</option><option value="unit">區單位</option><option value="team">隊伍</option><option value="group">組別</option><option value="role">職級</option><option value="product">商品</option></select><button id="exportRanking">匯出 Excel</button></div></div><table><thead><tr><th>名次</th><th>名稱</th><th>實收</th><th>原始加權</th><th>A&H</th><th>加權計績</th></tr></thead><tbody id="rankingRows"></tbody></table></div></section>
 
-      <section id="bonus" class="page"><div class="card"><h2>獎金進度</h2><div id="bonusPage" class="bonusGrid big"></div></div></section>
+      <section id="history" class="page"><div class="card"><div class="section-head"><h2>📊 歷史資料</h2><button id="archiveNow">一鍵封存目前競賽</button></div><div id="historyList" class="stack"></div></div></section>
 
-      <section id="qr" class="page"><div class="grid2"><div class="card"><h2>QR 活動簽到</h2><p class="note">正式版可把活動連結產生 QR Code；目前可先直接簽到測試。</p><div class="form4"><label>活動<select id="checkEvent"></select></label><label>簽到人<select id="checkPerson"></select></label><label>狀態<select id="checkStatus"><option value="present">出席</option><option value="leave">請假</option></select></label><label>新朋友姓名<input id="friendName" placeholder="沒有可空白"></label></div><button class="primary" id="saveCheckin">儲存簽到</button><div id="qrLinkBox"></div></div><div class="card"><h2>出席率與新朋友</h2><div id="attendanceList"></div></div></div></section>
+      <section id="admin" class="page">
+        <div class="admin-layout">
+          <div class="admin-tabs"><button class="admin-tab active" data-admin="people">👤 人員</button><button class="admin-tab" data-admin="products">📦 商品</button><button class="admin-tab" data-admin="rates">💵 匯率</button><button class="admin-tab" data-admin="competitions">🏆 競賽</button><button class="admin-tab" data-admin="bonus">🎁 獎勵活動</button><button class="admin-tab" data-admin="import">📥 匯入/匯出</button></div>
+          <div class="admin-panel card" id="adminPanel"></div>
+        </div>
+      </section>
 
-      <section id="history" class="page"><div class="grid2"><div class="card"><h2>歷史資料中心</h2><p class="note">每筆業績保存當時計算結果，之後調整倍率或匯率不會影響歷史。</p><div id="historyList"></div></div><div class="card"><h2>修改紀錄</h2><div id="auditList"></div></div></div></section>
-
-      <section id="admin" class="page"><div class="title"><h2>管理後台</h2><button class="dangerBtn" id="resetData">重置示範資料</button></div><div class="adminGrid"><div class="card"><h3>人員</h3><div id="adminPeople"></div><button class="secondary" id="addPerson">新增人員</button></div><div class="card"><h3>競賽</h3><div id="adminCompetitions"></div><button class="secondary" id="addCompetition">新增競賽</button></div><div class="card"><h3>商品</h3><div id="adminProducts"></div><button class="secondary" id="addProduct">新增商品</button></div><div class="card"><h3>匯率</h3><div id="adminRates"></div><button class="secondary" id="addRate">新增匯率</button></div><div class="card"><h3>額外加權</h3><div id="adminExtra"></div><button class="secondary" id="addExtra">新增額外加權</button></div><div class="card"><h3>每月獎金活動</h3><div id="adminBonus"></div><button class="secondary" id="addBonus">新增獎金活動</button></div><div class="card"><h3>QR 活動</h3><div id="adminEvents"></div><button class="secondary" id="addEvent">新增活動</button></div><div class="card"><h3>通訊處目標</h3><label>月份<input type="month" id="officeMonth"></label><label>目標加權<input type="number" id="officeGoalInput"></label><button class="primary" id="saveOfficeGoal">儲存</button></div><div class="card"><h3>我的高峰目標</h3><label>目標加權<input type="number" id="myGoalInput"></label><button class="primary" id="saveMyGoal">儲存</button></div></div></section>
+      <section id="theme" class="page"><div class="card"><h2>🎨 外觀設定</h2><div class="theme-grid"><label>背景顏色 <input type="color" id="bgColor"></label><label>主色 <input type="color" id="primaryColor"></label><label>文字顏色 <input type="color" id="textColor"></label><label>卡片顏色 <input type="color" id="cardColor"></label><label>圓角 <input type="range" id="radiusRange" min="8" max="28"></label><label>首頁 Banner <input id="bannerText" placeholder="115下半年 新高峰競賽"></label></div><button id="saveTheme">儲存外觀</button><button id="defaultTheme">恢復預設</button></div></section>
     </main>
   </div>
 
-  <div class="bottom" id="bottomNav" hidden><button class="nav active" data-page="home">🏠<small>首頁</small></button><button class="nav" data-page="qr">📷<small>QR</small></button><button class="nav plus" data-page="upload">＋</button><button class="nav" data-page="rank">🏆<small>排行</small></button><button class="nav" data-page="admin">⚙️<small>管理</small></button></div>
+  <template id="importTemplate">
+    <h2>📥 匯入中心</h2>
+    <p class="muted">支援 Excel / CSV。欄位名稱可用：姓名、區單位、隊伍、組別、職級、商品、商品代碼、年期、幣別、原始加權、競賽加權、月份、匯率、日期、保費。</p>
+    <div class="import-grid">
+      <label>匯入類型<select id="importType"><option value="people">人員</option><option value="products">商品</option><option value="rates">匯率</option><option value="sales">業績</option><option value="bonus">獎勵活動</option><option value="competitions">競賽標準</option></select></label>
+      <input type="file" id="importFile" accept=".xlsx,.xls,.csv" />
+      <button id="downloadTemplate">下載範本</button>
+    </div>
+    <div id="importPreview"></div>
+    <button id="confirmImport" disabled>確認匯入</button>
+  </template>
+
   <script src="firebase-config.js"></script>
+  <script src="firebase-service.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

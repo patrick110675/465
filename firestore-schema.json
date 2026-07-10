@@ -1,51 +1,85 @@
 {
   "users": {
-    "uid": "Firebase Auth UID",
-    "name": "張永朋",
-    "email": "user@example.com",
-    "role": "admin | user",
-    "team": "靛隊",
-    "level": "主任",
+    "name": "姓名",
+    "unit": "區單位",
+    "team": "隊伍",
+    "group": "組別",
+    "role": "職級",
     "active": true
+  },
+  "products": {
+    "name": "商品名稱",
+    "code": "商品代碼",
+    "year": "年期",
+    "currency": "TWD|USD",
+    "category": "商品類別",
+    "originalWeight": 0.05,
+    "contestWeight": 0.05,
+    "ah": false,
+    "active": true
+  },
+  "exchangeRates": {
+    "year": 2026,
+    "month": 7,
+    "usd": 31.57333
   },
   "sales": {
     "date": "2026-07-07",
-    "person": "張永朋",
-    "product": "BVA",
+    "userId": "users/{id}",
+    "userName": "姓名快照",
+    "unit": "區單位快照",
+    "team": "隊伍快照",
+    "group": "組別快照",
+    "role": "職級快照",
+    "productId": "products/{id}",
+    "productName": "商品快照",
     "premium": 500000,
     "currency": "TWD",
-    "exchangeRate": 1,
-    "baseWeighted": 25000,
-    "extraWeighted": 0,
-    "totalWeighted": 25000,
-    "competitionId": "c1",
-    "createdBy": "uid",
-    "createdAt": "serverTimestamp"
-  },
-  "products": {
-    "name": "BVA",
-    "type": "躉繳",
-    "currency": "TWD | USD",
-    "rateType": "percent | multiple",
-    "rate": 0.05,
-    "active": true
+    "usdRate": 1,
+    "twdPremium": 500000,
+    "originalWeighted": 25000,
+    "ahWeighted": 0,
+    "contestWeighted": 25000
   },
   "competitions": {
-    "name": "2026 下半年 新高峰",
-    "start": "2026-07-01",
-    "end": "2026-12-31",
+    "name": "新高峰|新極峰",
+    "start": "2026-07-02",
+    "end": "2026-12-15",
+    "role": "主任",
+    "weightedTarget": 2650000,
+    "premiumTarget": 20000000,
+    "reward": "日本關西"
+  },
+  "bonusRules": {
+    "name": "BVA",
+    "deadline": "2026-07-15",
+    "metric": "weighted|premium|count",
+    "target": 3000000,
+    "amount": 5000,
+    "product": "BVA",
     "active": true
   },
-  "officeGoals": {
-    "month": "2026-07",
-    "targetWeighted": 10000000
+  "settings": {
+    "banner": "115下半年 新高峰競賽",
+    "period": "2026/07/02 - 2026/12/15",
+    "officeTarget": 40000000,
+    "theme": {
+      "bg": "#eef7ff",
+      "primary": "#1769e8",
+      "text": "#0b1b3d",
+      "card": "#ffffff",
+      "radius": 18
+    }
+  },
+  "historySnapshots": {
+    "time": "封存時間",
+    "banner": "競賽名稱",
+    "ranking": [],
+    "sales": []
   },
   "auditLogs": {
-    "action": "create | update | delete",
-    "collection": "sales",
-    "before": {},
-    "after": {},
-    "userId": "uid",
-    "createdAt": "serverTimestamp"
+    "time": "異動時間",
+    "action": "新增/修改/刪除/匯入/封存",
+    "detail": "內容"
   }
 }
