@@ -1,4 +1,5 @@
 const LS_KEY='peakCompetitionV211';
+const APP_VERSION='V2.1.2';
 const fmt=n=>(Number(n)||0).toLocaleString('zh-TW',{maximumFractionDigits:0});
 const pct=n=>`${Math.round((Number(n)||0)*100)}%`;
 const today=()=>new Date().toISOString().slice(0,10);
@@ -31,8 +32,8 @@ const demo={
     {id:uid(),name:'新高峰',start:'2026-07-02',end:'2026-12-15',role:'主任',weightedTarget:2650000,premiumTarget:20000000,reward:'日本關西'},
     {id:uid(),name:'新高峰',start:'2026-07-02',end:'2026-12-15',role:'業代',weightedTarget:2200000,premiumTarget:16000000,reward:'日本關西'},
     {id:uid(),name:'新高峰',start:'2026-07-02',end:'2026-12-15',role:'區經理',weightedTarget:4000000,premiumTarget:28000000,reward:'日本關西'},
-    {id:uid(),name:'新極峰',start:'2026-07-02',end:'2026-12-15',role:'主任',weightedTarget:4000000,premiumTarget:0,reward:'新極峰'},
-    {id:uid(),name:'新極峰',start:'2026-07-02',end:'2026-12-15',role:'業代',weightedTarget:3300000,premiumTarget:0,reward:'新極峰'}
+    {id:uid(),name:'新極峰',start:'2026-07-02',end:'2026-12-15',role:'主任',weightedTarget:4000000,premiumTarget:0,ahTarget:0,reward:'新極峰'},
+    {id:uid(),name:'新極峰',start:'2026-07-02',end:'2026-12-15',role:'業代',weightedTarget:3300000,premiumTarget:0,ahTarget:0,reward:'新極峰'}
   ],
   bonus:[
     {id:uid(),name:'BVA',start:'2026-07-01',deadline:'2026-07-15',metric:'weighted',target:3000000,amount:5000,product:'BVA',category:'',ahOnly:false,protectionOnly:false,roles:'',active:true},
@@ -62,6 +63,16 @@ function normalizeState(){
   state.products=(state.products||[]).map(p=>({subcategory:'',protection:false,mainRider:'主約',...p}));
   state.bonus=(state.bonus||[]).map(b=>({start:'',category:'',subcategory:'',ahOnly:false,protectionOnly:false,roles:'',units:'',teams:'',groups:'',products:'',active:true,...b,products:b.products||b.product||''}));
   state.competitions=migrateCompetitions(state.competitions||[]);
+  // 新高峰、新極峰共用三項核心標準；實收欄位固定保留並可由管理中心填入各職級目標。
+  state.competitions=state.competitions.map(c=>{
+    if(c.scope!=='office' && ['新高峰','新極峰'].some(name=>String(c.name||'').includes(name))){
+      c.metrics=c.metrics||{};
+      c.metrics.weighted={enabled:c.metrics.weighted?.enabled!==false};
+      c.metrics.premium={enabled:true};
+      c.metrics.ah={enabled:!!c.metrics.ah?.enabled};
+    }
+    return c;
+  });
   if(!state.competitions.some(c=>c.scope==='office')){
     state.competitions.unshift(normalizeCompetition({id:uid(),name:'通訊處進度',scope:'office',start:'',end:'',logic:'AND',active:true,manualEnabled:!!state.settings.officeManual,manualValues:{weighted:Number(state.settings.officeDoneManual||0),premium:0,ah:0},metrics:{weighted:{enabled:true},premium:{enabled:false},ah:{enabled:false}},targets:{'通訊處':{weighted:Number(state.settings.officeTarget||40000000),premium:0,ah:0}},extraConditions:[]}));
   }
@@ -76,7 +87,7 @@ function migrateCompetitions(rows){
     if(!groups.has(key))groups.set(key,{id:uid(),name:r.name||'未命名競賽',start:r.start||'',end:r.end||'',scope:'personal',logic:'AND',active:true,reward:r.reward||'',metrics:{weighted:{enabled:true},premium:{enabled:false},ah:{enabled:false}},targets:{},extraConditions:[]});
     const c=groups.get(key); const role=r.role||'全員';
     c.targets[role]={weighted:Number(r.weightedTarget||0),premium:Number(r.premiumTarget||0),ah:Number(r.ahTarget||0)};
-    if(Number(r.premiumTarget||0)>0)c.metrics.premium.enabled=true;
+    if(Number(r.premiumTarget||0)>0 || String(r.name||'').includes('新極峰') || String(r.name||'').includes('新高峰'))c.metrics.premium.enabled=true;
     if(Number(r.ahTarget||0)>0)c.metrics.ah.enabled=true;
   });
   return [...groups.values()].map(normalizeCompetition);
@@ -174,7 +185,7 @@ function competitionTarget(c,role,metric){
 }
 function competitionStatus(c,user){
   const sales=competitionSales(c,user); const rows=[];
-  ['weighted','premium','ah'].forEach(metric=>{if(!c.metrics?.[metric]?.enabled)return;const target=competitionTarget(c,user?.role,metric);const done=c.manualEnabled?Number(c.manualValues?.[metric]||0):competitionMetricValue(metric,sales);rows.push({metric,target,done,rate:target?Math.min(done/target*100,100):0,met:target>0&&done>=target});});
+  ['weighted','premium','ah'].forEach(metric=>{if(!c.metrics?.[metric]?.enabled)return;const target=competitionTarget(c,user?.role,metric);const done=c.manualEnabled?Number(c.manualValues?.[metric]||0):competitionMetricValue(metric,sales);rows.push({metric,target,done,configured:target>0,rate:target?Math.min(done/target*100,100):0,met:target>0&&done>=target});});
   const extra=(c.extraConditions||[]).filter(x=>x.enabled!==false).map(x=>{const bonusLike={start:c.start,deadline:c.end,metric:x.metric||'count',target:Number(x.target||0),category:x.category||'',subcategory:x.subcategory||'',products:x.products||'',ahOnly:!!x.ahOnly,protectionOnly:!!x.protectionOnly,roles:x.roles||''};const result=bonusValue(bonusLike,sales,user);return {metric:x.label||bonusMetricLabel(x.metric),target:Number(x.target||0),done:result.value,rate:x.target?Math.min(result.value/Number(x.target)*100,100):0,met:Number(x.target)>0&&result.value>=Number(x.target),extra:true};});
   const all=[...rows,...extra]; const achieved=all.length?(c.logic==='OR'?all.some(x=>x.met):all.every(x=>x.met)):false;
   return {rows:all,achieved};
@@ -183,7 +194,7 @@ function metricName(m){return ({weighted:'加權保費',premium:'實收保費',a
 function renderCompetitionProgress(me){
   const box=document.getElementById('competitionProgressCards'); if(!box)return;
   const comps=state.competitions.filter(c=>c.active!==false&&c.scope!=='office');
-  box.innerHTML=comps.map(c=>{const st=competitionStatus(c,me);const details=st.rows.map(r=>`<div class="competition-metric"><div><b>${escapeHtml(r.extra?r.metric:metricName(r.metric))}</b><span>${fmt(r.done)} / ${fmt(r.target)}</span></div><div class="progress small"><i style="width:${r.rate}%"></i></div><small>${r.met?'✅ 已達成':`還差 ${fmt(Math.max(r.target-r.done,0))}`}｜${r.rate.toFixed(1)}%</small></div>`).join('')||'<small>尚未啟用任何標準</small>';return `<div class="mini-card competition-card ${st.achieved?'achieved':''}"><div class="competition-title"><b>${escapeHtml(c.name)}</b><span>${st.achieved?'🎉 已達成':(c.logic==='OR'?'任一達成':'全部達成')}</span></div><small>${c.start||'不限'}～${c.end||'不限'}｜職級：${escapeHtml(me?.role||'未設定')}</small>${details}</div>`}).join('')||'<p class="empty">尚未建立競賽目標</p>';
+  box.innerHTML=comps.map(c=>{const st=competitionStatus(c,me);const details=st.rows.map(r=>{const configured=r.extra||r.configured!==false;const valueText=configured?`${fmt(r.done)} / ${fmt(r.target)}`:`${fmt(r.done)} / 尚未設定`;const statusText=!configured?'請到競賽管理填入此職級目標':(r.met?'✅ 已達成':`還差 ${fmt(Math.max(r.target-r.done,0))}｜${r.rate.toFixed(1)}%`);return `<div class="competition-metric"><div><b>${escapeHtml(r.extra?r.metric:metricName(r.metric))}</b><span>${valueText}</span></div><div class="progress small"><i style="width:${configured?r.rate:0}%"></i></div><small>${statusText}</small></div>`}).join('')||'<small>尚未啟用任何標準</small>';return `<div class="mini-card competition-card ${st.achieved?'achieved':''}"><div class="competition-title"><b>${escapeHtml(c.name)}</b><span>${st.achieved?'🎉 已達成':(c.logic==='OR'?'任一達成':'全部達成')}</span></div><small>${c.start||'不限'}～${c.end||'不限'}｜職級：${escapeHtml(me?.role||'未設定')}</small>${details}</div>`}).join('')||'<p class="empty">尚未建立競賽目標</p>';
 }
 function renderBonus(mySales){
   const me=state.users.find(u=>u.name==='張永朋')||state.users[0];
@@ -267,7 +278,7 @@ function renderCustomDashboardCards(){
 function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));}
 function renderCompetitionAdmin(p){
   const roles=[...new Set(state.users.map(u=>u.role).filter(Boolean))];
-  p.innerHTML=`<div class="section-head"><h2>🏆 競賽與目標管理</h2><button id="newCompetition">＋新增競賽</button></div><div class="notice">固定標準：加權保費、實收保費、A&H。可個別啟用，並設定全部達成（AND）或任一達成（OR）。</div><div id="competitionEditor"></div><hr><div id="competitionList" class="stack"></div>`;
+  p.innerHTML=`<div class="section-head"><h2>🏆 競賽與目標管理</h2><button id="newCompetition">＋新增競賽</button></div><div class="notice">固定標準：加權保費、實收保費、A&H。新高峰與新極峰都保留實收保費；請在各職級列填入目標。可設定全部達成（AND）或任一達成（OR）。</div><div id="competitionEditor"></div><hr><div id="competitionList" class="stack"></div>`;
   const editor=p.querySelector('#competitionEditor'),list=p.querySelector('#competitionList');
   const renderList=()=>{list.innerHTML=state.competitions.map(c=>`<div class="bonus-item"><div class="bonus-line"><b>${escapeHtml(c.name)}</b><span>${c.scope==='office'?'通訊處':'個人'}｜${c.active!==false?'啟用':'停用'}｜${c.logic}</span></div><div class="bonus-line"><span>${c.start||'不限'}～${c.end||'不限'}</span><span>${Object.keys(c.targets||{}).length} 個職級</span></div><div><button class="edit" data-edit-comp="${c.id}">修改</button> <button class="delete" data-del-comp="${c.id}">刪除</button></div></div>`).join('')||'<p class="empty">尚無競賽</p>';list.querySelectorAll('[data-edit-comp]').forEach(b=>b.onclick=()=>openEditor(state.competitions.find(c=>c.id===b.dataset.editComp)));list.querySelectorAll('[data-del-comp]').forEach(b=>b.onclick=()=>{if(confirm('確定刪除競賽？')){state.competitions=state.competitions.filter(c=>c.id!==b.dataset.delComp);save();renderDashboard();renderList();}})};
   const openEditor=(source)=>{const c=normalizeCompetition(source?JSON.parse(JSON.stringify(source)):{id:uid(),name:'',scope:'personal',start:'',end:'',logic:'AND',active:true,reward:'',manualEnabled:false,manualValues:{weighted:0,premium:0,ah:0},metrics:{weighted:{enabled:true},premium:{enabled:true},ah:{enabled:false}},targets:{},extraConditions:[]});const targetRows=c.scope==='office'?['通訊處']:roles;targetRows.forEach(r=>{c.targets[r]=c.targets[r]||{weighted:0,premium:0,ah:0}});editor.innerHTML=`<form id="competitionForm"><div class="admin-form"><input name="name" placeholder="競賽／目標名稱" value="${escapeHtml(c.name)}" required><select name="scope"><option value="personal" ${c.scope!=='office'?'selected':''}>個人競賽</option><option value="office" ${c.scope==='office'?'selected':''}>通訊處進度</option></select><input name="start" type="date" value="${c.start}"><input name="end" type="date" value="${c.end}"><select name="logic"><option value="AND" ${c.logic==='AND'?'selected':''}>全部達成 AND</option><option value="OR" ${c.logic==='OR'?'selected':''}>任一達成 OR</option></select><input name="reward" placeholder="獎勵內容" value="${escapeHtml(c.reward)}"><label class="check-label"><input name="active" type="checkbox" ${c.active?'checked':''}> 啟用</label></div><h3>核心標準</h3><div class="core-metrics"><label><input type="checkbox" name="enable_weighted" ${c.metrics.weighted.enabled?'checked':''}> 加權保費</label><label><input type="checkbox" name="enable_premium" ${c.metrics.premium.enabled?'checked':''}> 實收保費</label><label><input type="checkbox" name="enable_ah" ${c.metrics.ah.enabled?'checked':''}> A&H</label></div><label class="check-label"><input type="checkbox" name="manualEnabled" ${c.manualEnabled?'checked':''}> 使用手動完成業績（特殊調整）</label><div class="admin-form"><label>手動加權<input type="number" name="manual_weighted" value="${Number(c.manualValues?.weighted||0)}"></label><label>手動實收<input type="number" name="manual_premium" value="${Number(c.manualValues?.premium||0)}"></label><label>手動 A&H<input type="number" name="manual_ah" value="${Number(c.manualValues?.ah||0)}"></label></div><div class="table-scroll"><table><thead><tr><th>${c.scope==='office'?'範圍':'職級'}</th><th>加權目標</th><th>實收目標</th><th>A&H目標</th></tr></thead><tbody>${targetRows.map(r=>`<tr><td>${escapeHtml(r)}</td><td><input type="number" step="1" data-role="${escapeHtml(r)}" data-metric="weighted" value="${Number(c.targets[r]?.weighted||0)}"></td><td><input type="number" step="1" data-role="${escapeHtml(r)}" data-metric="premium" value="${Number(c.targets[r]?.premium||0)}"></td><td><input type="number" step="1" data-role="${escapeHtml(r)}" data-metric="ah" value="${Number(c.targets[r]?.ah||0)}"></td></tr>`).join('')}</tbody></table></div><h3>其他條件（選填）</h3><div id="extraConditions"></div><button type="button" id="addExtra" class="edit">＋新增其他條件</button><div class="form-actions"><button type="submit">儲存競賽</button><button type="button" id="cancelCompetition" class="edit">取消</button></div></form>`;
