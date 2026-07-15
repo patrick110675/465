@@ -1,6 +1,5 @@
 const LS_KEY='peakCompetitionV211';
-const APP_VERSION='V2.2.0';
-window.PEAK_APP_VERSION=APP_VERSION;
+const APP_VERSION='V2.2.3';
 const fmt=n=>(Number(n)||0).toLocaleString('zh-TW',{maximumFractionDigits:0});
 const pct=n=>`${Math.round((Number(n)||0)*100)}%`;
 const today=()=>new Date().toISOString().slice(0,10);
@@ -120,35 +119,29 @@ function bonusValue(bonus,userSales,user){
   return {value:bonus.metric==='count'?data.length:sum(data,key),eligible:true,data};
 }
 
-function load(){const raw=localStorage.getItem(LS_KEY); if(raw) return JSON.parse(raw); localStorage.setItem(LS_KEY,JSON.stringify(demo)); return JSON.parse(JSON.stringify(demo));}
+function load(){
+  const keys=[LS_KEY,'peakCompetitionV211','peakCompetitionV20','peakCompetitionV19','peakCompetitionData'];
+  for(const key of keys){
+    const raw=localStorage.getItem(key);
+    if(!raw) continue;
+    try{
+      const parsed=JSON.parse(raw);
+      if(parsed&&typeof parsed==='object'){
+        if(key!==LS_KEY)localStorage.setItem(LS_KEY,raw);
+        return parsed;
+      }
+    }catch(e){console.warn('忽略損壞的本機資料',key,e)}
+  }
+  localStorage.setItem(LS_KEY,JSON.stringify(demo));
+  return JSON.parse(JSON.stringify(demo));
+}
 let cloudSaveTimer=null;
-function save(options={}){
+function save(){
   localStorage.setItem(LS_KEY,JSON.stringify(state));
-  if(options.cloud===false)return;
-  clearTimeout(cloudSaveTimer);
-  cloudSaveTimer=setTimeout(()=>{
-    window.PeakFirebaseService?.saveState(state).catch(error=>console.error('雲端同步失敗',error));
-  },500);
-}
-function setCloudStatus(detail={}){
-  const el=document.getElementById('cloudSyncStatus'); if(!el)return;
-  const labels={checking:'⏳ 檢查雲端',offline:'☁️ 本機模式',connected:'☁️ 已連線',syncing:'↻ 同步中',synced:'✓ 已同步',error:'⚠ 同步失敗'};
-  el.className=`cloud-status ${detail.status||'offline'}`;
-  el.textContent=labels[detail.status]||labels.offline;
-  el.title=detail.message||'點擊可重新連線並同步';
-  el.disabled=detail.status==='syncing';
-}
-window.addEventListener('peak:firebase-status',event=>setCloudStatus(event.detail));
-async function hydrateFromFirebase(){
-  if(!window.PeakFirebaseService)return;
-  try{
-    const cloud=await window.PeakFirebaseService.loadState();
-    if(cloud){state={...demo,...cloud};normalizeState();localStorage.setItem(LS_KEY,JSON.stringify(state));applyTheme();fillSelects();renderAll();renderAdmin();toast('已載入 Firebase 雲端資料');}
-    else{
-      await window.PeakFirebaseService.saveState(state);
-      toast('已建立 Firebase 資料庫並上傳目前資料');
-    }
-  }catch(error){console.error(error);toast('Firebase 尚未同步；點上方雲端狀態可重試');}
+  if(localStorage.getItem('peakCloudEnabled')==='1' && window.PeakFirebaseService?.isReady?.()){
+    clearTimeout(cloudSaveTimer);
+    cloudSaveTimer=setTimeout(()=>window.PeakFirebaseService.upload(state).catch(console.error),800);
+  }
 }
 function log(action,detail){state.audit.unshift({id:uid(),time:new Date().toISOString(),action,detail});}
 function makeSale(date,userName,productName,premium){
@@ -164,9 +157,46 @@ function createSale(date,userId,productId,premium){
   return {id:uid(),date,userId:u.id,userName:u.name,unit:u.unit,team:u.team,group:u.group,role:u.role,productId:p.id,productName:p.name,productCode:p.code,premium:Number(premium),currency:p.currency,usdRate:rate,twdPremium:twd,originalWeighted:twd*p.originalWeight,contestWeighted:twd*p.contestWeight,ahWeighted:p.ah?twd*p.contestWeight:0,createdAt:new Date().toISOString()};
 }
 
-function init(){applyTheme(); bindNav(); fillSelects(); bindForms(); renderAll(); renderAdmin(); setCloudStatus({status:'checking',message:'正在準備 Firebase'}); const cloudEl=document.getElementById('cloudSyncStatus'); if(cloudEl){cloudEl.onclick=async()=>{try{setCloudStatus({status:'checking',message:'正在重新連線 Firebase'});toast('正在重新連線 Firebase…');await window.PeakFirebaseService.forceSync(state);toast('Firebase 已完成同步');}catch(error){const message=window.PeakFirebaseService?.getLastError?.()||error.message||'未知錯誤';setCloudStatus({status:'error',message});alert('Firebase 連線失敗：'+message);}};} hydrateFromFirebase();}
+function init(){
+  applyTheme(); bindNav(); fillSelects(); bindForms(); renderAll(); renderAdmin();
+  bindCloudControls();
+  setTimeout(()=>window.PeakFirebaseService?.init?.(),50);
+}
+function bindCloudControls(){
+  const el=document.getElementById('cloudSyncStatus');
+  window.addEventListener('peak:firebase-status',e=>setCloudStatus(e.detail));
+  if(el) el.onclick=()=>openCloudDialog();
+}
+function setCloudStatus(detail={}){
+  const el=document.getElementById('cloudSyncStatus');if(!el)return;
+  const map={checking:'⏳ 檢查雲端',connected:'☁️ 已連線',syncing:'↻ 同步中',synced:'✅ 已同步',error:'⚠️ 連線失敗'};
+  el.textContent=map[detail.status]||'☁️ 本機模式';
+  el.className=`cloud-status ${detail.status||'offline'}`;
+  el.title=detail.message||'點擊管理雲端同步';
+}
+function openCloudDialog(){
+  const message='雲端同步：\n輸入 1＝上傳本機資料到 Firebase（首次建議）\n輸入 2＝從 Firebase 載入資料（會覆蓋本機）\n輸入 3＝只檢查連線';
+  const action=prompt(message,'1');
+  if(action==='1') uploadCloud();
+  else if(action==='2') downloadCloud();
+  else if(action==='3') window.PeakFirebaseService?.init?.(true);
+}
+async function uploadCloud(){
+  try{toast('正在上傳本機資料…');await window.PeakFirebaseService.upload(state);toast('已同步至 Firebase');}
+  catch(e){alert('上傳失敗：'+(window.PeakFirebaseService?.getLastError?.()||e.message));}
+}
+async function downloadCloud(){
+  if(!confirm('從雲端載入會覆蓋目前本機資料，確定繼續？'))return;
+  try{
+    const cloud=await window.PeakFirebaseService.download();
+    if(!cloud){toast('雲端目前沒有資料');return;}
+    state={...demo,...cloud};normalizeState();localStorage.setItem(LS_KEY,JSON.stringify(state));
+    applyTheme();fillSelects();renderAll();renderAdmin();localStorage.setItem('peakCloudEnabled','1');
+    toast('已載入 Firebase 雲端資料');
+  }catch(e){alert('載入失敗：'+(window.PeakFirebaseService?.getLastError?.()||e.message));}
+}
 function bindNav(){document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>showPage(b.dataset.page));document.querySelectorAll('[data-admin-tab]').forEach(b=>b.onclick=()=>{showPage('admin');currentAdmin=b.dataset.adminTab;renderAdmin();});document.querySelectorAll('.admin-tab').forEach(b=>b.onclick=()=>{currentAdmin=b.dataset.admin;renderAdmin();});document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');rankMode=b.dataset.rank;renderTop5();});document.getElementById('quickSearch').oninput=e=>quickSearch(e.target.value);}
-function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById(id)?.classList.add('active');document.querySelectorAll('.nav-item').forEach(n=>{n.classList.toggle('active',n.dataset.page===id);n.blur();});}
+function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById(id)?.classList.add('active');document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===id));}
 function fillSelects(){
   const su=document.getElementById('saleUser'),sp=document.getElementById('saleProduct'); su.innerHTML=state.users.map(u=>`<option value="${u.id}">${u.name}</option>`).join(''); sp.innerHTML=state.products.filter(p=>p.active!==false).map(p=>`<option value="${p.id}">${p.name}｜${p.year}｜${p.currency}｜${weightText(p.contestWeight)}</option>`).join('');
   fillFilter('filterUnit',[...new Set(state.users.map(u=>u.unit).filter(Boolean))],'全部區單位');fillFilter('filterTeam',[...new Set(state.users.map(u=>u.team).filter(Boolean))],'全部隊伍');fillFilter('filterRole',[...new Set(state.users.map(u=>u.role).filter(Boolean))],'全部職級');
