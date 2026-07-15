@@ -1,5 +1,8 @@
-// 高峰競賽平台 Firestore 正式同步服務 V2.2.1（Firebase Compat SDK）
+// 高峰競賽平台 Firestore 同步服務 V2.2.2
+// 使用 Firestore REST API，不依賴外部 Firebase SDK，避免 Safari / GitHub Pages 載入卡住。
 (function () {
+  'use strict';
+
   const COLLECTIONS = {
     users: 'people',
     products: 'products',
@@ -11,17 +14,26 @@
     audit: 'auditLogs'
   };
 
-  let db = null;
+  const STATE_KEYS = {
+    users: 'users',
+    products: 'products',
+    rates: 'rates',
+    competitions: 'competitions',
+    bonus: 'bonus',
+    sales: 'sales',
+    history: 'history',
+    audit: 'audit'
+  };
+
   let initialized = false;
   let syncing = false;
   let lastError = '';
+  let baseUrl = '';
+  let commitUrl = '';
+  let projectId = '';
+  let apiKey = '';
 
-  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-  const makeId = () => (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`);
-
-  function clean(value) {
-    return JSON.parse(JSON.stringify(value, (_key, item) => item === undefined ? null : item));
-  }
+  const makeId = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
   function setStatus(status, message) {
     window.dispatchEvent(new CustomEvent('peak:firebase-status', {
@@ -29,50 +41,200 @@
     }));
   }
 
-  async function waitForFirebase(timeoutMs = 12000) {
-    const started = Date.now();
-    while (Date.now() - started < timeoutMs) {
-      if (window.firebase?.initializeApp && window.firebase?.firestore && window.firebaseConfig?.projectId) return true;
-      await sleep(250);
+  function clean(value) {
+    return JSON.parse(JSON.stringify(value, (_key, item) => item === undefined ? null : item));
+  }
+
+  function encodeValue(value) {
+    if (value === null || value === undefined) return { nullValue: null };
+    if (typeof value === 'boolean') return { booleanValue: value };
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value)) return { nullValue: null };
+      return Number.isInteger(value)
+        ? { integerValue: String(value) }
+        : { doubleValue: value };
     }
-    return false;
+    if (typeof value === 'string') return { stringValue: value };
+    if (Array.isArray(value)) return { arrayValue: { values: value.map(encodeValue) } };
+    if (typeof value === 'object') return { mapValue: { fields: encodeFields(value) } };
+    return { stringValue: String(value) };
+  }
+
+  function encodeFields(object) {
+    const fields = {};
+    Object.entries(clean(object || {})).forEach(([key, value]) => {
+      fields[key] = encodeValue(value);
+    });
+    return fields;
+  }
+
+  function decodeValue(value) {
+    if (!value || 'nullValue' in value) return null;
+    if ('booleanValue' in value) return value.booleanValue;
+    if ('integerValue' in value) return Number(value.integerValue);
+    if ('doubleValue' in value) return Number(value.doubleValue);
+    if ('timestampValue' in value) return value.timestampValue;
+    if ('stringValue' in value) return value.stringValue;
+    if ('arrayValue' in value) return (value.arrayValue.values || []).map(decodeValue);
+    if ('mapValue' in value) return decodeFields(value.mapValue.fields || {});
+    return null;
+  }
+
+  function decodeFields(fields) {
+    const result = {};
+    Object.entries(fields || {}).forEach(([key, value]) => {
+      result[key] = decodeValue(value);
+    });
+    return result;
+  }
+
+  function documentName(collection, id) {
+    return `projects/${projectId}/databases/(default)/documents/${collection}/${id}`;
+  }
+
+  function encodePath(path) {
+    return path.split('/').map(encodeURIComponent).join('/');
+  }
+
+  async function request(url, options = {}) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(options.headers || {})
+        }
+      });
+      const text = await response.text();
+      const data = text ? JSON.parse(text) : null;
+      if (!response.ok) {
+        const message = data?.error?.message || `${response.status} ${response.statusText}`;
+        const error = new Error(message);
+        error.code = data?.error?.status || `http-${response.status}`;
+        throw error;
+      }
+      return data;
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        const timeoutError = new Error('連線逾時，請檢查網路或 Firestore 規則');
+        timeoutError.code = 'timeout';
+        throw timeoutError;
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   async function init(force = false) {
     if (initialized && !force) return true;
-    setStatus('checking', '正在檢查 Firebase SDK 與專案設定…');
+    setStatus('checking', '正在檢查 Firebase 專案設定…');
 
-    const sdkReady = await waitForFirebase();
-    if (!sdkReady) {
-      const missing = [];
-      if (!window.firebase) missing.push('Firebase SDK');
-      if (!window.firebaseConfig?.projectId) missing.push('firebase-config.js');
-      lastError = `${missing.join('、') || 'Firebase'} 尚未載入`;
+    const config = window.firebaseConfig || {};
+    projectId = String(config.projectId || '').trim();
+    apiKey = String(config.apiKey || '').trim();
+    if (!projectId || !apiKey) {
+      initialized = false;
+      lastError = 'firebase-config.js 缺少 projectId 或 apiKey';
       setStatus('error', lastError);
       return false;
     }
 
+    baseUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents`;
+    commitUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents:commit?key=${encodeURIComponent(apiKey)}`;
+
     try {
-      if (!window.firebase.apps.length) window.firebase.initializeApp(window.firebaseConfig);
-      db = window.firebase.firestore();
-      // 強制進行一次伺服器讀取，避免只完成初始化卻誤判已連線。
-      await db.collection('settings').doc('main').get({ source: 'server' });
+      // 使用 REST 直接確認 Firestore 可讀取；不存在的 settings/main 會回 404，仍代表 API 可連線。
+      const url = `${baseUrl}/settings/main?key=${encodeURIComponent(apiKey)}`;
+      try {
+        await request(url);
+      } catch (error) {
+        if (error.code !== 'NOT_FOUND' && error.code !== 'http-404') throw error;
+      }
       initialized = true;
       lastError = '';
-      setStatus('connected', `已連線 Firebase：${window.firebaseConfig.projectId}`);
+      setStatus('connected', `已連線 Firebase：${projectId}`);
       return true;
     } catch (error) {
       initialized = false;
       lastError = `${error.code || 'firebase-error'}：${error.message}`;
-      console.error('Firebase 初始化／連線失敗', error);
+      console.error('Firestore REST 連線失敗', error);
       setStatus('error', lastError);
       return false;
     }
   }
 
-  async function readCollection(name) {
-    const snapshot = await db.collection(name).get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  async function getDocument(collection, id) {
+    const url = `${baseUrl}/${encodePath(`${collection}/${id}`)}?key=${encodeURIComponent(apiKey)}`;
+    try {
+      const doc = await request(url);
+      return { id, ...decodeFields(doc.fields || {}) };
+    } catch (error) {
+      if (error.code === 'NOT_FOUND' || error.code === 'http-404') return null;
+      throw error;
+    }
+  }
+
+  async function listCollection(collection) {
+    const rows = [];
+    let pageToken = '';
+    do {
+      const query = new URLSearchParams({ pageSize: '1000', key: apiKey });
+      if (pageToken) query.set('pageToken', pageToken);
+      const data = await request(`${baseUrl}/${encodeURIComponent(collection)}?${query.toString()}`);
+      (data?.documents || []).forEach(doc => {
+        const id = decodeURIComponent(doc.name.split('/').pop());
+        if (id === '_meta') return;
+        rows.push({ id, ...decodeFields(doc.fields || {}) });
+      });
+      pageToken = data?.nextPageToken || '';
+    } while (pageToken);
+    return rows;
+  }
+
+  async function commitWrites(writes) {
+    for (let index = 0; index < writes.length; index += 350) {
+      await request(commitUrl, {
+        method: 'POST',
+        body: JSON.stringify({ writes: writes.slice(index, index + 350) })
+      });
+    }
+  }
+
+  async function syncCollection(collection, rows) {
+    const normalized = (rows || []).map(row => ({ ...clean(row), id: String(row.id || makeId()) }));
+    const current = await listCollection(collection);
+    const incomingIds = new Set(normalized.map(row => row.id));
+    const writes = [];
+
+    normalized.forEach(row => {
+      writes.push({
+        update: {
+          name: documentName(collection, row.id),
+          fields: encodeFields(row)
+        }
+      });
+    });
+
+    current.forEach(row => {
+      if (!incomingIds.has(row.id)) writes.push({ delete: documentName(collection, row.id) });
+    });
+
+    if (normalized.length === 0) {
+      writes.push({
+        update: {
+          name: documentName(collection, '_meta'),
+          fields: encodeFields({ placeholder: true, updatedAt: new Date().toISOString() })
+        }
+      });
+    } else {
+      writes.push({ delete: documentName(collection, '_meta') });
+    }
+
+    await commitWrites(writes);
   }
 
   async function loadState() {
@@ -80,18 +242,18 @@
     try {
       setStatus('syncing', '正在讀取 Firestore 雲端資料…');
       const [settingsDoc, users, products, rates, competitions, bonus, sales, history, audit] = await Promise.all([
-        db.collection('settings').doc('main').get(),
-        readCollection(COLLECTIONS.users),
-        readCollection(COLLECTIONS.products),
-        readCollection(COLLECTIONS.rates),
-        readCollection(COLLECTIONS.competitions),
-        readCollection(COLLECTIONS.bonus),
-        readCollection(COLLECTIONS.sales),
-        readCollection(COLLECTIONS.history),
-        readCollection(COLLECTIONS.audit)
+        getDocument('settings', 'main'),
+        listCollection(COLLECTIONS.users),
+        listCollection(COLLECTIONS.products),
+        listCollection(COLLECTIONS.rates),
+        listCollection(COLLECTIONS.competitions),
+        listCollection(COLLECTIONS.bonus),
+        listCollection(COLLECTIONS.sales),
+        listCollection(COLLECTIONS.history),
+        listCollection(COLLECTIONS.audit)
       ]);
 
-      const hasCloudData = settingsDoc.exists || [users, products, rates, competitions, bonus, sales].some(rows => rows.length > 0);
+      const hasCloudData = Boolean(settingsDoc) || [users, products, rates, competitions, bonus, sales].some(rows => rows.length > 0);
       if (!hasCloudData) {
         setStatus('connected', 'Firestore 已連線，目前尚無資料，準備初始化');
         return null;
@@ -99,8 +261,15 @@
 
       setStatus('synced', '已載入 Firestore 雲端資料');
       return {
-        settings: settingsDoc.exists ? settingsDoc.data() : {},
-        users, products, rates, competitions, bonus, sales, history, audit
+        settings: settingsDoc ? Object.fromEntries(Object.entries(settingsDoc).filter(([key]) => key !== 'id')) : {},
+        users,
+        products,
+        rates,
+        competitions,
+        bonus,
+        sales,
+        history,
+        audit
       };
     } catch (error) {
       lastError = `${error.code || 'read-error'}：${error.message}`;
@@ -110,49 +279,29 @@
     }
   }
 
-  async function syncCollection(collectionName, rows) {
-    const normalized = (rows || []).map(row => ({ ...row, id: String(row.id || makeId()) }));
-    const current = await db.collection(collectionName).get();
-    const incomingIds = new Set(normalized.map(row => row.id));
-    const operations = [];
-
-    normalized.forEach(row => {
-      operations.push({ type: 'set', ref: db.collection(collectionName).doc(row.id), data: clean(row) });
-    });
-    current.docs.forEach(doc => {
-      if (!incomingIds.has(doc.id)) operations.push({ type: 'delete', ref: doc.ref });
-    });
-
-    for (let i = 0; i < operations.length; i += 400) {
-      const batch = db.batch();
-      operations.slice(i, i + 400).forEach(op => {
-        if (op.type === 'set') batch.set(op.ref, op.data, { merge: false });
-        else batch.delete(op.ref);
-      });
-      await batch.commit();
-    }
-  }
-
   async function saveState(state) {
     if (syncing) return false;
-    if (!await init()) return false;
+    if (!await init()) throw new Error(lastError || 'Firebase 連線失敗');
     syncing = true;
     try {
       setStatus('syncing', '正在寫入 Firestore…');
-      await db.collection('settings').doc('main').set(clean({
-        ...(state.settings || {}),
-        updatedAt: new Date().toISOString(),
-        appVersion: window.PEAK_APP_VERSION || '2.2.1'
-      }), { merge: false });
+      await commitWrites([{
+        update: {
+          name: documentName('settings', 'main'),
+          fields: encodeFields({
+            ...(state.settings || {}),
+            updatedAt: new Date().toISOString(),
+            appVersion: window.PEAK_APP_VERSION || '2.2.2'
+          })
+        }
+      }]);
 
-      // 逐集合執行，讓錯誤訊息可明確指出失敗位置。
-      for (const [key, collectionName] of Object.entries(COLLECTIONS)) {
-        const stateKey = ({ users:'users',products:'products',rates:'rates',competitions:'competitions',bonus:'bonus',sales:'sales',history:'history',audit:'audit' })[key];
-        setStatus('syncing', `正在同步 ${collectionName}…`);
-        await syncCollection(collectionName, state[stateKey] || []);
+      for (const [key, collection] of Object.entries(COLLECTIONS)) {
+        setStatus('syncing', `正在同步 ${collection}…`);
+        await syncCollection(collection, state[STATE_KEYS[key]] || []);
       }
 
-      setStatus('synced', `已同步至 Firestore（${new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}）`);
+      setStatus('synced', `已同步（${new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}）`);
       return true;
     } catch (error) {
       lastError = `${error.code || 'write-error'}：${error.message}`;

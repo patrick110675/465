@@ -135,7 +135,8 @@ function setCloudStatus(detail={}){
   const labels={checking:'⏳ 檢查雲端',offline:'☁️ 本機模式',connected:'☁️ 已連線',syncing:'↻ 同步中',synced:'✓ 已同步',error:'⚠ 同步失敗'};
   el.className=`cloud-status ${detail.status||'offline'}`;
   el.textContent=labels[detail.status]||labels.offline;
-  el.title=detail.message||'';
+  el.title=detail.message||'點擊可重新連線並同步';
+  el.disabled=detail.status==='syncing';
 }
 window.addEventListener('peak:firebase-status',event=>setCloudStatus(event.detail));
 async function hydrateFromFirebase(){
@@ -163,9 +164,9 @@ function createSale(date,userId,productId,premium){
   return {id:uid(),date,userId:u.id,userName:u.name,unit:u.unit,team:u.team,group:u.group,role:u.role,productId:p.id,productName:p.name,productCode:p.code,premium:Number(premium),currency:p.currency,usdRate:rate,twdPremium:twd,originalWeighted:twd*p.originalWeight,contestWeighted:twd*p.contestWeight,ahWeighted:p.ah?twd*p.contestWeight:0,createdAt:new Date().toISOString()};
 }
 
-function init(){applyTheme(); bindNav(); fillSelects(); bindForms(); renderAll(); renderAdmin(); setCloudStatus({status:'checking',message:'正在準備 Firebase'}); const cloudEl=document.getElementById('cloudSyncStatus'); if(cloudEl){cloudEl.style.cursor='pointer';cloudEl.onclick=async()=>{try{toast('正在重新連線 Firebase…');await window.PeakFirebaseService?.forceSync(state);}catch(error){alert('Firebase 連線失敗：'+(window.PeakFirebaseService?.getLastError?.()||error.message));}};} hydrateFromFirebase();}
+function init(){applyTheme(); bindNav(); fillSelects(); bindForms(); renderAll(); renderAdmin(); setCloudStatus({status:'checking',message:'正在準備 Firebase'}); const cloudEl=document.getElementById('cloudSyncStatus'); if(cloudEl){cloudEl.onclick=async()=>{try{setCloudStatus({status:'checking',message:'正在重新連線 Firebase'});toast('正在重新連線 Firebase…');await window.PeakFirebaseService.forceSync(state);toast('Firebase 已完成同步');}catch(error){const message=window.PeakFirebaseService?.getLastError?.()||error.message||'未知錯誤';setCloudStatus({status:'error',message});alert('Firebase 連線失敗：'+message);}};} hydrateFromFirebase();}
 function bindNav(){document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>showPage(b.dataset.page));document.querySelectorAll('[data-admin-tab]').forEach(b=>b.onclick=()=>{showPage('admin');currentAdmin=b.dataset.adminTab;renderAdmin();});document.querySelectorAll('.admin-tab').forEach(b=>b.onclick=()=>{currentAdmin=b.dataset.admin;renderAdmin();});document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');rankMode=b.dataset.rank;renderTop5();});document.getElementById('quickSearch').oninput=e=>quickSearch(e.target.value);}
-function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById(id)?.classList.add('active');document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===id));}
+function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById(id)?.classList.add('active');document.querySelectorAll('.nav-item').forEach(n=>{n.classList.toggle('active',n.dataset.page===id);n.blur();});}
 function fillSelects(){
   const su=document.getElementById('saleUser'),sp=document.getElementById('saleProduct'); su.innerHTML=state.users.map(u=>`<option value="${u.id}">${u.name}</option>`).join(''); sp.innerHTML=state.products.filter(p=>p.active!==false).map(p=>`<option value="${p.id}">${p.name}｜${p.year}｜${p.currency}｜${weightText(p.contestWeight)}</option>`).join('');
   fillFilter('filterUnit',[...new Set(state.users.map(u=>u.unit).filter(Boolean))],'全部區單位');fillFilter('filterTeam',[...new Set(state.users.map(u=>u.team).filter(Boolean))],'全部隊伍');fillFilter('filterRole',[...new Set(state.users.map(u=>u.role).filter(Boolean))],'全部職級');
