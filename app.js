@@ -165,8 +165,24 @@ function init(){
 function bindCloudControls(){
   const el=document.getElementById('cloudSyncStatus');
   window.addEventListener('peak:firebase-status',e=>setCloudStatus(e.detail));
-  if(el) el.onclick=()=>openCloudDialog();
+  if(el){el.type='button';el.onclick=e=>{e.preventDefault();e.stopPropagation();openCloudPanel();};}
+  document.querySelectorAll('[data-close-cloud]').forEach(x=>x.onclick=closeCloudPanel);
+  const up=document.getElementById('cloudUploadBtn'),down=document.getElementById('cloudDownloadBtn'),check=document.getElementById('cloudCheckBtn');
+  if(up)up.onclick=uploadCloud;
+  if(down)down.onclick=downloadCloud;
+  if(check)check.onclick=async()=>{setCloudPanelMessage('正在檢查連線…');const ok=await window.PeakFirebaseService?.init?.(true);setCloudPanelMessage(ok?'已成功連線 Firebase。':'連線失敗：'+(window.PeakFirebaseService?.getLastError?.()||'未知錯誤'));};
 }
+function cloudCounts(){return {人員:state.users?.length||0,商品:state.products?.length||0,匯率:state.rates?.length||0,競賽:state.competitions?.length||0,獎勵:state.bonus?.length||0,業績:state.sales?.length||0};}
+function setCloudPanelMessage(msg){const el=document.getElementById('cloudModalMessage');if(el)el.textContent=msg;}
+function openCloudPanel(){
+  const modal=document.getElementById('cloudSyncModal');if(!modal)return;
+  const summary=document.getElementById('cloudLocalSummary');const counts=cloudCounts();
+  if(summary)summary.innerHTML=Object.entries(counts).map(([k,v])=>`<span><b>${k}</b><strong>${v} 筆</strong></span>`).join('');
+  setCloudPanelMessage(window.PeakFirebaseService?.isReady?.()?'Firebase 已連線，請選擇同步方式。':'目前尚未連線，建議先按「重新檢查連線」。');
+  modal.classList.add('open');modal.setAttribute('aria-hidden','false');
+}
+function closeCloudPanel(){const modal=document.getElementById('cloudSyncModal');if(modal){modal.classList.remove('open');modal.setAttribute('aria-hidden','true');}}
+window.openPeakCloudPanel=openCloudPanel;
 function setCloudStatus(detail={}){
   const el=document.getElementById('cloudSyncStatus');if(!el)return;
   const map={checking:'⏳ 檢查雲端',connected:'☁️ 已連線',syncing:'↻ 同步中',synced:'✅ 已同步',error:'⚠️ 連線失敗'};
@@ -174,25 +190,19 @@ function setCloudStatus(detail={}){
   el.className=`cloud-status ${detail.status||'offline'}`;
   el.title=detail.message||'點擊管理雲端同步';
 }
-function openCloudDialog(){
-  const message='雲端同步：\n輸入 1＝上傳本機資料到 Firebase（首次建議）\n輸入 2＝從 Firebase 載入資料（會覆蓋本機）\n輸入 3＝只檢查連線';
-  const action=prompt(message,'1');
-  if(action==='1') uploadCloud();
-  else if(action==='2') downloadCloud();
-  else if(action==='3') window.PeakFirebaseService?.init?.(true);
-}
+function openCloudDialog(){openCloudPanel();}
 async function uploadCloud(){
-  try{toast('正在上傳本機資料…');await window.PeakFirebaseService.upload(state);toast('已同步至 Firebase');}
+  try{setCloudPanelMessage('正在上傳本機資料…');toast('正在上傳本機資料…');await window.PeakFirebaseService.upload(state);setCloudPanelMessage('✅ 已同步至 Firebase');toast('已同步至 Firebase');}
   catch(e){alert('上傳失敗：'+(window.PeakFirebaseService?.getLastError?.()||e.message));}
 }
 async function downloadCloud(){
   if(!confirm('從雲端載入會覆蓋目前本機資料，確定繼續？'))return;
   try{
     const cloud=await window.PeakFirebaseService.download();
-    if(!cloud){toast('雲端目前沒有資料');return;}
+    if(!cloud){setCloudPanelMessage('雲端目前沒有資料，未覆蓋本機資料。');toast('雲端目前沒有資料');return;}
     state={...demo,...cloud};normalizeState();localStorage.setItem(LS_KEY,JSON.stringify(state));
     applyTheme();fillSelects();renderAll();renderAdmin();localStorage.setItem('peakCloudEnabled','1');
-    toast('已載入 Firebase 雲端資料');
+    setCloudPanelMessage('✅ 已載入 Firebase 雲端資料');toast('已載入 Firebase 雲端資料');
   }catch(e){alert('載入失敗：'+(window.PeakFirebaseService?.getLastError?.()||e.message));}
 }
 function bindNav(){document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>showPage(b.dataset.page));document.querySelectorAll('[data-admin-tab]').forEach(b=>b.onclick=()=>{showPage('admin');currentAdmin=b.dataset.adminTab;renderAdmin();});document.querySelectorAll('.admin-tab').forEach(b=>b.onclick=()=>{currentAdmin=b.dataset.admin;renderAdmin();});document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');rankMode=b.dataset.rank;renderTop5();});document.getElementById('quickSearch').oninput=e=>quickSearch(e.target.value);}

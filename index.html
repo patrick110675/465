@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon.svg">
-  <link rel="stylesheet" href="style.css?v=2.2.3" />
+  <link rel="stylesheet" href="style.css?v=2.2.4" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.3/dist/jspdf.plugin.autotable.min.js"></script>
@@ -36,7 +36,7 @@
     <main class="main">
       <header class="topbar">
         <div><h1 id="pageTitle">高峰競賽平台 👋</h1><p id="competitionSubtitle">115下半年 新高峰競賽｜2026/07/02 - 2026/12/15</p></div>
-        <div class="top-actions"><button type="button" id="cloudSyncStatus" class="cloud-status offline" title="點擊管理雲端同步">☁️ 本機模式</button><input id="quickSearch" placeholder="快速搜尋：人員 / 商品 / 活動"/></div>
+        <div class="top-actions"><button type="button" id="cloudSyncStatus" class="cloud-status offline" title="點擊管理雲端同步" onclick="window.openPeakCloudPanel && window.openPeakCloudPanel()">☁️ 本機模式</button><input id="quickSearch" placeholder="快速搜尋：人員 / 商品 / 活動"/></div>
       </header>
 
       <section id="dashboard" class="page active">
@@ -92,6 +92,21 @@
     </main>
   </div>
 
+  <div id="cloudSyncModal" class="cloud-modal" aria-hidden="true">
+    <div class="cloud-modal-backdrop" data-close-cloud></div>
+    <section class="cloud-modal-card" role="dialog" aria-modal="true" aria-labelledby="cloudModalTitle">
+      <div class="cloud-modal-head"><h2 id="cloudModalTitle">☁️ 雲端同步</h2><button type="button" class="cloud-modal-close" data-close-cloud>×</button></div>
+      <p id="cloudModalMessage" class="muted">選擇要執行的動作。</p>
+      <div id="cloudLocalSummary" class="cloud-summary"></div>
+      <div class="cloud-modal-actions">
+        <button type="button" id="cloudUploadBtn" class="primary">上傳本機資料到 Firebase</button>
+        <button type="button" id="cloudDownloadBtn">下載 Firebase 雲端資料</button>
+        <button type="button" id="cloudCheckBtn">重新檢查連線</button>
+      </div>
+      <p class="cloud-warning">首次串聯請先選「上傳本機資料」，避免空白雲端覆蓋目前資料。</p>
+    </section>
+  </div>
+
   <template id="importTemplate">
     <h2>📥 匯入中心</h2>
     <p class="muted">支援 Excel / CSV。欄位名稱可用：姓名、區單位、隊伍、組別、職級、商品、商品代碼、年期、幣別、原始加權、競賽加權、月份、匯率、日期、保費。</p>
@@ -104,8 +119,8 @@
     <button id="confirmImport" disabled>確認匯入</button>
   </template>
 
-  <script src="firebase-config.js?v=2.2.3"></script>
-  <script src="firebase-service.js?v=2.2.3"></script>
-  <script src="app.js?v=2.2.3"></script>
+  <script src="firebase-config.js?v=2.2.4"></script>
+  <script src="firebase-service.js?v=2.2.4"></script>
+  <script src="app.js?v=2.2.4"></script>
 </body>
 </html>
