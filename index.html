@@ -30,16 +30,18 @@
     <main class="main">
       <header class="topbar">
         <div><h1 id="pageTitle">高峰競賽平台 👋</h1><p id="competitionSubtitle">115下半年 新高峰競賽｜2026/07/02 - 2026/12/15</p></div>
-        <div class="top-actions"><input id="quickSearch" placeholder="快速搜尋：人員 / 商品 / 活動"/><button id="resetDemo">重置示範資料</button></div>
+        <div class="top-actions"><input id="quickSearch" placeholder="快速搜尋：人員 / 商品 / 活動"/></div>
       </header>
 
       <section id="dashboard" class="page active">
-        <div class="grid kpi-row">
+        <div id="dashboardKpiRow" class="grid kpi-row">
           <article class="card kpi"><div class="icon blue">📈</div><div><span>今日加權</span><strong id="todayWeighted">0</strong><small id="todayWeightedHint">較昨日 +0%</small></div></article>
           <article class="card kpi"><div class="icon green">💰</div><div><span>今日實收</span><strong id="todayPremium">0</strong><small>自動彙整今日報件</small></div></article>
           <article class="card kpi star"><div class="icon gold">⭐</div><div><span>每日之星</span><strong id="dailyStar">尚無</strong><small id="dailyStarSub">今日加權第一名</small></div></article>
           <article class="card kpi"><div class="icon purple">📦</div><div><span>今日件數</span><strong id="todayCount">0 件</strong><small>最新報件件數</small></div></article>
         </div>
+
+        <div id="customDashboardCards" class="grid custom-dashboard-grid"></div>
 
         <div class="grid two">
           <article class="card"><h2>🎯 通訊處進度</h2><div class="progress-meta"><span>本月目標 <b id="officeTarget">40,000,000</b></span><span>已完成 <b id="officeDone">0</b></span><span class="danger">還差 <b id="officeRemain">0</b></span></div><div class="progress"><i id="officeBar"></i></div><p>達成率 <b id="officeRate">0%</b></p></article>
@@ -75,7 +77,7 @@
 
       <section id="admin" class="page">
         <div class="admin-layout">
-          <div class="admin-tabs"><button class="admin-tab active" data-admin="people">👤 人員</button><button class="admin-tab" data-admin="products">📦 商品</button><button class="admin-tab" data-admin="rates">💵 匯率</button><button class="admin-tab" data-admin="competitions">🏆 競賽</button><button class="admin-tab" data-admin="bonus">🎁 獎勵活動</button><button class="admin-tab" data-admin="import">📥 匯入/匯出</button></div>
+          <div class="admin-tabs"><button class="admin-tab active" data-admin="people">👤 人員</button><button class="admin-tab" data-admin="products">📦 商品</button><button class="admin-tab" data-admin="rates">💵 匯率</button><button class="admin-tab" data-admin="competitions">🏆 競賽</button><button class="admin-tab" data-admin="bonus">🎁 獎勵活動</button><button class="admin-tab" data-admin="dashboardSettings">🏠 首頁設定</button><button class="admin-tab" data-admin="import">📥 匯入/匯出</button></div>
           <div class="admin-panel card" id="adminPanel"></div>
         </div>
       </section>
