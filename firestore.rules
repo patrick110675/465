@@ -1,8 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 此版本依使用者需求不設登入，供內部測試網址使用。
-    // 正式公開前建議改為 Firebase Authentication + 管理員權限。
+    // 目前平台尚未要求登入，先開放讀寫供內部測試。
+    // 正式公開前應改成管理員驗證規則。
     match /{document=**} {
       allow read, write: if true;
     }

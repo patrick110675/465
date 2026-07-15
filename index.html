@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon.svg">
-  <link rel="stylesheet" href="style.css?v=2.2.4" />
+  <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.3/dist/jspdf.plugin.autotable.min.js"></script>
@@ -36,7 +36,7 @@
     <main class="main">
       <header class="topbar">
         <div><h1 id="pageTitle">高峰競賽平台 👋</h1><p id="competitionSubtitle">115下半年 新高峰競賽｜2026/07/02 - 2026/12/15</p></div>
-        <div class="top-actions"><button type="button" id="cloudSyncStatus" class="cloud-status offline" title="點擊管理雲端同步" onclick="window.openPeakCloudPanel && window.openPeakCloudPanel()">☁️ 本機模式</button><input id="quickSearch" placeholder="快速搜尋：人員 / 商品 / 活動"/></div>
+        <div class="top-actions"><button id="cloudSyncStatus" class="cloud-status offline" type="button" title="點擊重新連線">☁️ 本機備援</button><input id="quickSearch" placeholder="快速搜尋：人員 / 商品 / 活動"/></div>
       </header>
 
       <section id="dashboard" class="page active">
@@ -83,28 +83,13 @@
 
       <section id="admin" class="page">
         <div class="admin-layout">
-          <div class="admin-tabs"><button class="admin-tab active" data-admin="people">👤 人員</button><button class="admin-tab" data-admin="products">📦 商品</button><button class="admin-tab" data-admin="rates">💵 匯率</button><button class="admin-tab" data-admin="competitions">🏆 競賽</button><button class="admin-tab" data-admin="bonus">🎁 獎勵活動</button><button class="admin-tab" data-admin="dashboardSettings">🏠 首頁設定</button><button class="admin-tab" data-admin="import">📥 匯入/匯出</button></div>
+          <div class="admin-tabs"><button class="admin-tab active" data-admin="people">👤 人員</button><button class="admin-tab" data-admin="products">📦 商品</button><button class="admin-tab" data-admin="rates">💵 匯率</button><button class="admin-tab" data-admin="competitions">🏆 競賽</button><button class="admin-tab" data-admin="bonus">🎁 獎勵活動</button><button class="admin-tab" data-admin="dashboardSettings">🏠 首頁設定</button><button class="admin-tab" data-admin="import">📥 匯入/匯出</button><button class="admin-tab" data-admin="trash">🗑️ 回收桶</button></div>
           <div class="admin-panel card" id="adminPanel"></div>
         </div>
       </section>
 
       <section id="theme" class="page"><div class="card"><h2>🎨 外觀設定</h2><div class="theme-grid"><label>加入主畫面名稱 <input id="appNameInput" placeholder="高峰競賽"></label><label>App 圖示 <input type="file" id="appIconFile" accept="image/png,image/jpeg,image/webp,image/svg+xml"></label><label>圖示預覽 <img id="appIconPreview" class="app-icon-preview" alt="App 圖示預覽"></label><label>背景顏色 <input type="color" id="bgColor"></label><label>主色 <input type="color" id="primaryColor"></label><label>文字顏色 <input type="color" id="textColor"></label><label>卡片顏色 <input type="color" id="cardColor"></label><label>圓角 <input type="range" id="radiusRange" min="8" max="28"></label><label>首頁 Banner <input id="bannerText" placeholder="115下半年 新高峰競賽"></label></div><button id="saveTheme">儲存外觀</button><button id="removeAppIcon" class="edit">恢復預設圖示</button><button id="defaultTheme">恢復預設</button></div></section>
     </main>
-  </div>
-
-  <div id="cloudSyncModal" class="cloud-modal" aria-hidden="true">
-    <div class="cloud-modal-backdrop" data-close-cloud onclick="window.closePeakCloudPanel && window.closePeakCloudPanel()"></div>
-    <section class="cloud-modal-card" role="dialog" aria-modal="true" aria-labelledby="cloudModalTitle">
-      <div class="cloud-modal-head"><h2 id="cloudModalTitle">☁️ 雲端同步</h2><button type="button" class="cloud-modal-close" data-close-cloud onclick="window.closePeakCloudPanel && window.closePeakCloudPanel()" aria-label="關閉">×</button></div>
-      <p id="cloudModalMessage" class="muted">選擇要執行的動作。</p>
-      <div id="cloudLocalSummary" class="cloud-summary"></div>
-      <div class="cloud-modal-actions">
-        <button type="button" id="cloudUploadBtn" class="primary" onclick="window.uploadPeakCloud && window.uploadPeakCloud()">上傳本機資料到 Firebase</button>
-        <button type="button" id="cloudDownloadBtn" onclick="window.downloadPeakCloud && window.downloadPeakCloud()">下載 Firebase 雲端資料</button>
-        <button type="button" id="cloudCheckBtn" onclick="window.checkPeakCloud && window.checkPeakCloud()">重新檢查連線</button>
-      </div>
-      <p class="cloud-warning">首次串聯請先選「上傳本機資料」，避免空白雲端覆蓋目前資料。</p>
-    </section>
   </div>
 
   <template id="importTemplate">
@@ -119,10 +104,8 @@
     <button id="confirmImport" disabled>確認匯入</button>
   </template>
 
-  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-  <script src="firebase-config.js?v=2.2.5"></script>
-  <script src="firebase-service.js?v=2.2.5"></script>
-  <script src="app.js?v=2.2.5"></script>
+  <script src="firebase-config.js"></script>
+  <script src="firebase-service.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
