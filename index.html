@@ -36,7 +36,7 @@
     <main class="main">
       <header class="topbar">
         <div><h1 id="pageTitle">高峰競賽平台 👋</h1><p id="competitionSubtitle">115下半年 新高峰競賽｜2026/07/02 - 2026/12/15</p></div>
-        <div class="top-actions"><input id="quickSearch" placeholder="快速搜尋：人員 / 商品 / 活動"/></div>
+        <div class="top-actions"><span id="cloudSyncStatus" class="cloud-status offline" title="Firebase 同步狀態">☁️ 本機模式</span><input id="quickSearch" placeholder="快速搜尋：人員 / 商品 / 活動"/></div>
       </header>
 
       <section id="dashboard" class="page active">
@@ -104,6 +104,8 @@
     <button id="confirmImport" disabled>確認匯入</button>
   </template>
 
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="firebase-config.js"></script>
   <script src="firebase-service.js"></script>
   <script src="app.js"></script>
