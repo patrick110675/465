@@ -1,27 +1,10 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() { return request.auth != null; }
-    function isAdmin() {
-      return signedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin','superAdmin'];
+    // 此版本依使用者需求不設登入，供內部測試網址使用。
+    // 正式公開前建議改為 Firebase Authentication + 管理員權限。
+    match /{document=**} {
+      allow read, write: if true;
     }
-    match /users/{uid} {
-      allow read: if signedIn();
-      allow create, update, delete: if isAdmin();
-    }
-    match /sales/{id} {
-      allow read: if signedIn();
-      allow create: if signedIn();
-      allow update, delete: if isAdmin();
-    }
-    match /products/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
-    match /exchangeRates/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
-    match /competitions/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
-    match /bonusRules/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
-    match /extraRules/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
-    match /officeGoals/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
-    match /archives/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
-    match /auditLogs/{id} { allow read: if signedIn(); allow create: if signedIn(); allow update, delete: if false; }
-    match /settings/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
   }
 }

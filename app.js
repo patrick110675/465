@@ -1,5 +1,6 @@
 const LS_KEY='peakCompetitionV211';
-const APP_VERSION='V2.1.2';
+const APP_VERSION='V2.2.0';
+window.PEAK_APP_VERSION=APP_VERSION;
 const fmt=n=>(Number(n)||0).toLocaleString('zh-TW',{maximumFractionDigits:0});
 const pct=n=>`${Math.round((Number(n)||0)*100)}%`;
 const today=()=>new Date().toISOString().slice(0,10);
@@ -120,7 +121,34 @@ function bonusValue(bonus,userSales,user){
 }
 
 function load(){const raw=localStorage.getItem(LS_KEY); if(raw) return JSON.parse(raw); localStorage.setItem(LS_KEY,JSON.stringify(demo)); return JSON.parse(JSON.stringify(demo));}
-function save(){localStorage.setItem(LS_KEY,JSON.stringify(state));}
+let cloudSaveTimer=null;
+function save(options={}){
+  localStorage.setItem(LS_KEY,JSON.stringify(state));
+  if(options.cloud===false)return;
+  clearTimeout(cloudSaveTimer);
+  cloudSaveTimer=setTimeout(()=>{
+    window.PeakFirebaseService?.saveState(state).catch(error=>console.error('雲端同步失敗',error));
+  },500);
+}
+function setCloudStatus(detail={}){
+  const el=document.getElementById('cloudSyncStatus'); if(!el)return;
+  const labels={checking:'⏳ 檢查雲端',offline:'☁️ 本機模式',connected:'☁️ 已連線',syncing:'↻ 同步中',synced:'✓ 已同步',error:'⚠ 同步失敗'};
+  el.className=`cloud-status ${detail.status||'offline'}`;
+  el.textContent=labels[detail.status]||labels.offline;
+  el.title=detail.message||'';
+}
+window.addEventListener('peak:firebase-status',event=>setCloudStatus(event.detail));
+async function hydrateFromFirebase(){
+  if(!window.PeakFirebaseService)return;
+  try{
+    const cloud=await window.PeakFirebaseService.loadState();
+    if(cloud){state={...demo,...cloud};normalizeState();localStorage.setItem(LS_KEY,JSON.stringify(state));applyTheme();fillSelects();renderAll();renderAdmin();toast('已載入 Firebase 雲端資料');}
+    else{
+      await window.PeakFirebaseService.saveState(state);
+      toast('已建立 Firebase 資料庫並上傳目前資料');
+    }
+  }catch(error){console.error(error);toast('Firebase 尚未同步；點上方雲端狀態可重試');}
+}
 function log(action,detail){state.audit.unshift({id:uid(),time:new Date().toISOString(),action,detail});}
 function makeSale(date,userName,productName,premium){
   const u=(demo.users||state?.users||[]).find(x=>x.name===userName); const p=(demo.products||state?.products||[]).find(x=>x.name===productName); if(!u||!p)return null;
@@ -135,7 +163,7 @@ function createSale(date,userId,productId,premium){
   return {id:uid(),date,userId:u.id,userName:u.name,unit:u.unit,team:u.team,group:u.group,role:u.role,productId:p.id,productName:p.name,productCode:p.code,premium:Number(premium),currency:p.currency,usdRate:rate,twdPremium:twd,originalWeighted:twd*p.originalWeight,contestWeighted:twd*p.contestWeight,ahWeighted:p.ah?twd*p.contestWeight:0,createdAt:new Date().toISOString()};
 }
 
-function init(){applyTheme(); bindNav(); fillSelects(); bindForms(); renderAll(); renderAdmin();}
+function init(){applyTheme(); bindNav(); fillSelects(); bindForms(); renderAll(); renderAdmin(); setCloudStatus({status:'checking',message:'正在準備 Firebase'}); const cloudEl=document.getElementById('cloudSyncStatus'); if(cloudEl){cloudEl.style.cursor='pointer';cloudEl.onclick=async()=>{try{toast('正在重新連線 Firebase…');await window.PeakFirebaseService?.forceSync(state);}catch(error){alert('Firebase 連線失敗：'+(window.PeakFirebaseService?.getLastError?.()||error.message));}};} hydrateFromFirebase();}
 function bindNav(){document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>showPage(b.dataset.page));document.querySelectorAll('[data-admin-tab]').forEach(b=>b.onclick=()=>{showPage('admin');currentAdmin=b.dataset.adminTab;renderAdmin();});document.querySelectorAll('.admin-tab').forEach(b=>b.onclick=()=>{currentAdmin=b.dataset.admin;renderAdmin();});document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');rankMode=b.dataset.rank;renderTop5();});document.getElementById('quickSearch').oninput=e=>quickSearch(e.target.value);}
 function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById(id)?.classList.add('active');document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===id));}
 function fillSelects(){
