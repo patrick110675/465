@@ -4,6 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>高峰競賽平台｜Peak Competition Platform</title>
+  <meta name="theme-color" content="#1769e8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="高峰競賽">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
@@ -45,7 +51,7 @@
 
         <div class="grid two">
           <article class="card"><h2>🎯 通訊處進度</h2><div class="progress-meta"><span>本月目標 <b id="officeTarget">40,000,000</b></span><span>已完成 <b id="officeDone">0</b></span><span class="danger">還差 <b id="officeRemain">0</b></span></div><div class="progress"><i id="officeBar"></i></div><p>達成率 <b id="officeRate">0%</b></p></article>
-          <article class="card"><h2>🏆 我的競賽進度</h2><div class="mini-grid"><div class="mini-card"><b>新高峰</b><strong id="peakRate">0%</strong><div class="progress small"><i id="peakBar"></i></div><small id="peakRemain">還差 0</small></div><div class="mini-card purple-card"><b>新極峰</b><strong id="superRate">0%</strong><div class="progress small purple"><i id="superBar"></i></div><small id="superRemain">還差 0</small></div></div></article>
+          <article class="card"><h2>🏆 我的競賽進度</h2><div id="competitionProgressCards" class="competition-progress-grid"></div></article>
         </div>
 
         <div class="grid three">
@@ -82,7 +88,7 @@
         </div>
       </section>
 
-      <section id="theme" class="page"><div class="card"><h2>🎨 外觀設定</h2><div class="theme-grid"><label>背景顏色 <input type="color" id="bgColor"></label><label>主色 <input type="color" id="primaryColor"></label><label>文字顏色 <input type="color" id="textColor"></label><label>卡片顏色 <input type="color" id="cardColor"></label><label>圓角 <input type="range" id="radiusRange" min="8" max="28"></label><label>首頁 Banner <input id="bannerText" placeholder="115下半年 新高峰競賽"></label></div><button id="saveTheme">儲存外觀</button><button id="defaultTheme">恢復預設</button></div></section>
+      <section id="theme" class="page"><div class="card"><h2>🎨 外觀設定</h2><div class="theme-grid"><label>加入主畫面名稱 <input id="appNameInput" placeholder="高峰競賽"></label><label>App 圖示 <input type="file" id="appIconFile" accept="image/png,image/jpeg,image/webp,image/svg+xml"></label><label>圖示預覽 <img id="appIconPreview" class="app-icon-preview" alt="App 圖示預覽"></label><label>背景顏色 <input type="color" id="bgColor"></label><label>主色 <input type="color" id="primaryColor"></label><label>文字顏色 <input type="color" id="textColor"></label><label>卡片顏色 <input type="color" id="cardColor"></label><label>圓角 <input type="range" id="radiusRange" min="8" max="28"></label><label>首頁 Banner <input id="bannerText" placeholder="115下半年 新高峰競賽"></label></div><button id="saveTheme">儲存外觀</button><button id="removeAppIcon" class="edit">恢復預設圖示</button><button id="defaultTheme">恢復預設</button></div></section>
     </main>
   </div>
 
