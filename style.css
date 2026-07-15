@@ -21,3 +21,5 @@
 .cloud-summary{margin:14px 0;padding:14px;border:1px solid #d9e4f3;border-radius:16px;background:#f7fbff;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px}
 .cloud-summary span{display:flex;justify-content:space-between;gap:8px}.cloud-modal-actions{display:grid;gap:10px}.cloud-modal-actions button{min-height:48px;border-radius:14px}.cloud-modal-actions .primary{background:var(--primary,#1769e8);color:#fff}.cloud-warning{font-size:13px;color:#9a5b00;margin:14px 0 0}
 @media(min-width:761px){.cloud-modal{align-items:center}.cloud-modal-card{border-radius:24px}}
+
+body.cloud-modal-open{overflow:hidden}.cloud-modal-close{min-width:48px;min-height:48px;display:grid;place-items:center;z-index:3}.cloud-modal-backdrop{cursor:pointer}.cloud-modal-card{z-index:2}.cloud-modal-actions button:disabled{opacity:.55;cursor:not-allowed}

@@ -93,15 +93,15 @@
   </div>
 
   <div id="cloudSyncModal" class="cloud-modal" aria-hidden="true">
-    <div class="cloud-modal-backdrop" data-close-cloud></div>
+    <div class="cloud-modal-backdrop" data-close-cloud onclick="window.closePeakCloudPanel && window.closePeakCloudPanel()"></div>
     <section class="cloud-modal-card" role="dialog" aria-modal="true" aria-labelledby="cloudModalTitle">
-      <div class="cloud-modal-head"><h2 id="cloudModalTitle">☁️ 雲端同步</h2><button type="button" class="cloud-modal-close" data-close-cloud>×</button></div>
+      <div class="cloud-modal-head"><h2 id="cloudModalTitle">☁️ 雲端同步</h2><button type="button" class="cloud-modal-close" data-close-cloud onclick="window.closePeakCloudPanel && window.closePeakCloudPanel()" aria-label="關閉">×</button></div>
       <p id="cloudModalMessage" class="muted">選擇要執行的動作。</p>
       <div id="cloudLocalSummary" class="cloud-summary"></div>
       <div class="cloud-modal-actions">
-        <button type="button" id="cloudUploadBtn" class="primary">上傳本機資料到 Firebase</button>
-        <button type="button" id="cloudDownloadBtn">下載 Firebase 雲端資料</button>
-        <button type="button" id="cloudCheckBtn">重新檢查連線</button>
+        <button type="button" id="cloudUploadBtn" class="primary" onclick="window.uploadPeakCloud && window.uploadPeakCloud()">上傳本機資料到 Firebase</button>
+        <button type="button" id="cloudDownloadBtn" onclick="window.downloadPeakCloud && window.downloadPeakCloud()">下載 Firebase 雲端資料</button>
+        <button type="button" id="cloudCheckBtn" onclick="window.checkPeakCloud && window.checkPeakCloud()">重新檢查連線</button>
       </div>
       <p class="cloud-warning">首次串聯請先選「上傳本機資料」，避免空白雲端覆蓋目前資料。</p>
     </section>
@@ -119,8 +119,10 @@
     <button id="confirmImport" disabled>確認匯入</button>
   </template>
 
-  <script src="firebase-config.js?v=2.2.4"></script>
-  <script src="firebase-service.js?v=2.2.4"></script>
-  <script src="app.js?v=2.2.4"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js?v=2.2.5"></script>
+  <script src="firebase-service.js?v=2.2.5"></script>
+  <script src="app.js?v=2.2.5"></script>
 </body>
 </html>

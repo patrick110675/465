@@ -1,5 +1,5 @@
 const LS_KEY='peakCompetitionV211';
-const APP_VERSION='V2.2.3';
+const APP_VERSION='V2.2.5';
 const fmt=n=>(Number(n)||0).toLocaleString('zh-TW',{maximumFractionDigits:0});
 const pct=n=>`${Math.round((Number(n)||0)*100)}%`;
 const today=()=>new Date().toISOString().slice(0,10);
@@ -168,10 +168,28 @@ function bindCloudControls(){
   if(el){el.type='button';el.onclick=e=>{e.preventDefault();e.stopPropagation();openCloudPanel();};}
   document.querySelectorAll('[data-close-cloud]').forEach(x=>x.onclick=closeCloudPanel);
   const up=document.getElementById('cloudUploadBtn'),down=document.getElementById('cloudDownloadBtn'),check=document.getElementById('cloudCheckBtn');
-  if(up)up.onclick=uploadCloud;
-  if(down)down.onclick=downloadCloud;
-  if(check)check.onclick=async()=>{setCloudPanelMessage('正在檢查連線…');const ok=await window.PeakFirebaseService?.init?.(true);setCloudPanelMessage(ok?'已成功連線 Firebase。':'連線失敗：'+(window.PeakFirebaseService?.getLastError?.()||'未知錯誤'));};
+  if(up)up.onclick=e=>{e.preventDefault();uploadCloud();};
+  if(down)down.onclick=e=>{e.preventDefault();downloadCloud();};
+  if(check)check.onclick=e=>{e.preventDefault();checkCloudConnection();};
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeCloudPanel();});
 }
+
+async function checkCloudConnection(){
+  setCloudPanelMessage('正在檢查 Firebase 連線…');
+  try{
+    const ok=await window.PeakFirebaseService?.init?.(true);
+    const err=window.PeakFirebaseService?.getLastError?.()||'';
+    setCloudPanelMessage(ok?'✅ Firebase 已連線，可以上傳本機資料。':`❌ 連線失敗：${err||'未知錯誤'}`);
+    return ok;
+  }catch(e){
+    setCloudPanelMessage(`❌ 連線失敗：${e?.message||e}`);
+    return false;
+  }
+}
+window.checkPeakCloud=checkCloudConnection;
+window.uploadPeakCloud=uploadCloud;
+window.downloadPeakCloud=downloadCloud;
+
 function cloudCounts(){return {人員:state.users?.length||0,商品:state.products?.length||0,匯率:state.rates?.length||0,競賽:state.competitions?.length||0,獎勵:state.bonus?.length||0,業績:state.sales?.length||0};}
 function setCloudPanelMessage(msg){const el=document.getElementById('cloudModalMessage');if(el)el.textContent=msg;}
 function openCloudPanel(){
@@ -179,10 +197,10 @@ function openCloudPanel(){
   const summary=document.getElementById('cloudLocalSummary');const counts=cloudCounts();
   if(summary)summary.innerHTML=Object.entries(counts).map(([k,v])=>`<span><b>${k}</b><strong>${v} 筆</strong></span>`).join('');
   setCloudPanelMessage(window.PeakFirebaseService?.isReady?.()?'Firebase 已連線，請選擇同步方式。':'目前尚未連線，建議先按「重新檢查連線」。');
-  modal.classList.add('open');modal.setAttribute('aria-hidden','false');
+  modal.classList.add('open');modal.setAttribute('aria-hidden','false');document.body.classList.add('cloud-modal-open');
 }
-function closeCloudPanel(){const modal=document.getElementById('cloudSyncModal');if(modal){modal.classList.remove('open');modal.setAttribute('aria-hidden','true');}}
-window.openPeakCloudPanel=openCloudPanel;
+function closeCloudPanel(){const modal=document.getElementById('cloudSyncModal');if(modal){modal.classList.remove('open');modal.setAttribute('aria-hidden','true');}document.body.classList.remove('cloud-modal-open');}
+window.openPeakCloudPanel=openCloudPanel;window.closePeakCloudPanel=closeCloudPanel;
 function setCloudStatus(detail={}){
   const el=document.getElementById('cloudSyncStatus');if(!el)return;
   const map={checking:'⏳ 檢查雲端',connected:'☁️ 已連線',syncing:'↻ 同步中',synced:'✅ 已同步',error:'⚠️ 連線失敗'};
