@@ -135,12 +135,33 @@ function makeSale(date,userName,productName,premium){
   const y=Number(date.slice(0,4)),m=Number(date.slice(5,7)); const rate=(p.currency==='USD')?((demo.rates||state?.rates||[]).find(r=>r.year===y&&r.month===m)?.usd||1):1;
   const twd=Number(premium)*rate; return {id:uid(),date,userId:u.id,userName:u.name,productId:p.id,productName:p.name,productCode:p.code,premium:Number(premium),currency:p.currency,usdRate:rate,twdPremium:twd,originalWeighted:twd*p.originalWeight,contestWeighted:twd*p.contestWeight,ahWeighted:p.ah?twd*p.contestWeight:0,createdAt:new Date().toISOString()};
 }
-function createSale(date,userId,productId,premium){
-  const u=state.users.find(x=>x.id===userId); const p=state.products.find(x=>x.id===productId); if(!u||!p) throw new Error('缺少人員或商品');
+function findSaleUser(ref){
+  const key=norm(ref);
+  return state.users.find(x=>String(x.id||'')===key || norm(x.name)===key);
+}
+function findSaleProduct(ref){
+  const key=norm(ref);
+  const shortKey=norm(key.split('｜')[0]);
+  return state.products.find(x=>String(x.id||'')===key || norm(x.code)===key || norm(x.name)===key || norm(x.name)===shortKey);
+}
+function createSale(date,userRef,productRef,premium){
+  const u=findSaleUser(userRef);
+  const p=findSaleProduct(productRef);
+  if(!u||!p) throw new Error(`找不到報件資料：${!u?'人員':''}${!u&&!p?'、':''}${!p?'商品':''}。請回管理中心重新儲存該資料。`);
+  if(!date) throw new Error('請選擇報件日期');
+  const premiumValue=Number(premium);
+  if(!Number.isFinite(premiumValue)||premiumValue<=0) throw new Error('原始保費必須大於 0');
   const y=Number(date.slice(0,4)),m=Number(date.slice(5,7)); let rate=1;
-  if(p.currency==='USD'){const r=state.rates.find(x=>x.year===y&&x.month===m); if(!r) throw new Error(`尚未設定 ${y}/${m} 美金匯率`); rate=Number(r.usd);}
-  const twd=Number(premium)*rate;
-  return {id:uid(),date,userId:u.id,userName:u.name,unit:u.unit,team:u.team,group:u.group,role:u.role,productId:p.id,productName:p.name,productCode:p.code,premium:Number(premium),currency:p.currency,usdRate:rate,twdPremium:twd,originalWeighted:twd*p.originalWeight,contestWeighted:twd*p.contestWeight,ahWeighted:p.ah?twd*p.contestWeight:0,createdAt:new Date().toISOString()};
+  if(String(p.currency||'TWD').toUpperCase()==='USD'){
+    const r=state.rates.find(x=>Number(x.year)===y&&Number(x.month)===m);
+    if(!r) throw new Error(`尚未設定 ${y}/${m} 美金匯率`);
+    rate=Number(r.usd);
+    if(!Number.isFinite(rate)||rate<=0) throw new Error(`${y}/${m} 美金匯率格式錯誤`);
+  }
+  const originalWeight=Number(p.originalWeight)||0;
+  const contestWeight=Number(p.contestWeight)||0;
+  const twd=premiumValue*rate;
+  return {id:uid(),date,userId:u.id||u.name,userName:u.name,unit:u.unit||'',team:u.team||'',group:u.group||'',role:u.role||'',productId:p.id||p.code||p.name,productName:p.name,productCode:p.code||'',premium:premiumValue,currency:String(p.currency||'TWD').toUpperCase(),usdRate:rate,twdPremium:twd,originalWeighted:twd*originalWeight,contestWeighted:twd*contestWeight,ahWeighted:p.ah?twd*contestWeight:0,createdAt:new Date().toISOString()};
 }
 
 function init(){
@@ -172,13 +193,34 @@ async function connectCloud(force=false){
 function bindNav(){document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>showPage(b.dataset.page));document.querySelectorAll('[data-admin-tab]').forEach(b=>b.onclick=()=>{showPage('admin');currentAdmin=b.dataset.adminTab;renderAdmin();});document.querySelectorAll('.admin-tab').forEach(b=>b.onclick=()=>{currentAdmin=b.dataset.admin;renderAdmin();});document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');rankMode=b.dataset.rank;renderTop5();});document.getElementById('quickSearch').oninput=e=>quickSearch(e.target.value);}
 function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById(id)?.classList.add('active');document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===id));}
 function fillSelects(){
-  const su=document.getElementById('saleUser'),sp=document.getElementById('saleProduct'); su.innerHTML=state.users.map(u=>`<option value="${u.id}">${u.name}</option>`).join(''); sp.innerHTML=state.products.filter(p=>p.active!==false).map(p=>`<option value="${p.id}">${p.name}｜${p.year}｜${p.currency}｜${weightText(p.contestWeight)}</option>`).join('');
+  const su=document.getElementById('saleUser'),sp=document.getElementById('saleProduct');
+  su.innerHTML=state.users.filter(u=>u.active!==false).map(u=>`<option value="${escapeHtml(String(u.id||u.name))}">${escapeHtml(u.name)}</option>`).join('');
+  sp.innerHTML=state.products.filter(p=>p.active!==false).map(p=>`<option value="${escapeHtml(String(p.id||p.code||p.name))}">${escapeHtml(p.name)}｜${escapeHtml(p.year||'')}｜${escapeHtml(p.currency||'TWD')}｜${weightText(p.contestWeight)}</option>`).join('');
   fillFilter('filterUnit',[...new Set(state.users.map(u=>u.unit).filter(Boolean))],'全部區單位');fillFilter('filterTeam',[...new Set(state.users.map(u=>u.team).filter(Boolean))],'全部隊伍');fillFilter('filterRole',[...new Set(state.users.map(u=>u.role).filter(Boolean))],'全部職級');
   document.getElementById('saleDate').value=today(); document.getElementById('filterDate').value=today();
 }
 function fillFilter(id,arr,label){const el=document.getElementById(id);el.innerHTML=`<option value="">${label}</option>`+arr.map(v=>`<option>${v}</option>`).join('');}
 function bindForms(){
-  document.getElementById('saleForm').onsubmit=e=>{e.preventDefault();try{const s=createSale(saleDate.value,saleUser.value,saleProduct.value,salePremium.value);state.sales.unshift(s);log('新增報件',`${s.userName} ${s.productName} ${fmt(s.twdPremium)}`);save();salePremium.value='';renderAll();toast('已新增報件');}catch(err){alert(err.message)}};
+  document.getElementById('saleForm').onsubmit=e=>{
+    e.preventDefault();
+    const dateEl=document.getElementById('saleDate');
+    const userEl=document.getElementById('saleUser');
+    const productEl=document.getElementById('saleProduct');
+    const premiumEl=document.getElementById('salePremium');
+    try{
+      const s=createSale(dateEl.value,userEl.value,productEl.value,premiumEl.value);
+      state.sales.unshift(s);
+      log('新增報件',`${s.userName} ${s.productName} ${fmt(s.twdPremium)}`);
+      save();
+      premiumEl.value='';
+      document.getElementById('filterDate').value=s.date;
+      renderAll();
+      toast(`已新增報件：${s.userName}／${s.productName}`);
+    }catch(err){
+      console.error('新增報件失敗',err,{date:dateEl.value,user:userEl.value,product:productEl.value,premium:premiumEl.value});
+      alert(err?.message||'新增報件失敗，請重新整理後再試');
+    }
+  };
   ['filterDate','filterUnit','filterTeam','filterRole'].forEach(id=>document.getElementById(id).onchange=renderDaily);document.getElementById('clearFilters').onclick=()=>{filterDate.value='';filterUnit.value='';filterTeam.value='';filterRole.value='';renderDaily();};
   rankingType.onchange=renderRanking; exportSales.onclick=()=>exportRows('每日報件',getDailyAggRows().map(r=>({姓名:r.name,加權計績:r.contestWeighted,實收:r.twdPremium,AH:r.ahWeighted,原始加權:r.originalWeighted}))); exportRanking.onclick=()=>exportRows('排行榜',getRanking(rankingType.value)); printSales.onclick=()=>printReport('每日報件',getDailyAggRows().map(r=>[r.name,fmt(r.contestWeighted),fmt(r.twdPremium),fmt(r.ahWeighted),fmt(r.originalWeighted)]),['姓名','加權計績','實收','A&H','原始加權']); archiveNow.onclick=archiveCompetition;
   appIconFile.onchange=e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{state.settings.appIcon=ev.target.result;save();applyTheme();toast('App 圖示已更新；iPhone 請刪除舊捷徑後重新加入主畫面');};reader.readAsDataURL(file);}; removeAppIcon.onclick=()=>{state.settings.appIcon='';save();applyTheme();toast('已恢復預設圖示');}; saveTheme.onclick=saveThemeSettings; defaultTheme.onclick=()=>{state.settings.theme=JSON.parse(JSON.stringify(demo.settings.theme));save();applyTheme();};
