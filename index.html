@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon.svg">
-  <link rel="stylesheet" href="style.css?v=official-20260716" />
+  <link rel="stylesheet" href="style.css?v=official-20260716-r3" />
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
@@ -35,32 +35,33 @@
       <header class="topbar">
         <div><h1 id="pageTitle">高峰競賽平台 👋</h1><p id="competitionSubtitle">115下半年 新高峰競賽｜2026/07/02 - 2026/12/15</p></div>
         <div class="top-actions"><button id="cloudSyncStatus" class="cloud-status" type="button" title="點擊重新連線">⏳ 連線中</button></div>
-      <div class="official-version">唯一正式整合版｜2026.07.16-R2</div>
     </header>
 
       <section id="dashboard" class="page active">
-        <div id="dashboardKpiRow" class="grid kpi-row">
-          <article class="card kpi"><div class="icon blue">📈</div><div><span>今日加權</span><strong id="todayWeighted">0</strong><small id="todayWeightedHint">較昨日 +0%</small></div></article>
-          <article class="card kpi"><div class="icon green">💰</div><div><span>今日實收</span><strong id="todayPremium">0</strong><small>自動彙整今日報件</small></div></article>
-          <article class="card kpi star"><div class="icon gold">⭐</div><div><span>每日之星</span><strong id="dailyStar">尚無</strong><small id="dailyStarSub">今日加權第一名</small></div></article>
-          <article class="card kpi"><div class="icon purple">📦</div><div><span>今日件數</span><strong id="todayCount">0 件</strong><small>最新報件件數</small></div></article>
+        <div id="dashboardSections" class="dashboard-sections">
+          <section id="homeSectionKpis" class="home-section" data-home-section="kpis" data-home-title="首頁統計卡">
+            <div id="dashboardKpiRow" class="grid kpi-row">
+              <article class="card kpi"><div class="icon blue">📈</div><div><span>今日加權</span><strong id="todayWeighted">0</strong><small id="todayWeightedHint">較昨日 +0%</small></div></article>
+              <article class="card kpi"><div class="icon green">💰</div><div><span>今日實收</span><strong id="todayPremium">0</strong><small>自動彙整今日報件</small></div></article>
+              <article class="card kpi star"><div class="icon gold">⭐</div><div><span>每日之星</span><strong id="dailyStar">尚無</strong><small id="dailyStarSub">今日加權第一名</small></div></article>
+              <article class="card kpi"><div class="icon purple">📦</div><div><span>今日件數</span><strong id="todayCount">0 件</strong><small>最新報件件數</small></div></article>
+            </div>
+          </section>
+
+          <section id="homeSectionCustom" class="home-section" data-home-section="custom" data-home-title="自訂方塊">
+            <div id="customDashboardCards" class="grid custom-dashboard-grid"></div>
+          </section>
+
+          <article class="card home-section" id="dashboardShortcutsCard" data-home-section="shortcuts" data-home-title="快捷功能"><div class="section-head"><h2>⚡ 快捷功能</h2></div><div id="dashboardShortcuts" class="dashboard-shortcuts"></div></article>
+
+          <article class="card home-section" id="dashboardOfficeCard" data-home-section="office" data-home-title="通訊處進度"><h2>🎯 通訊處進度</h2><div class="progress-meta"><span>本月目標 <b id="officeTarget">40,000,000</b></span><span>已完成 <b id="officeDone">0</b></span><span class="danger">還差 <b id="officeRemain">0</b></span></div><div class="progress"><i id="officeBar"></i></div><p>達成率 <b id="officeRate">0%</b></p></article>
+
+          <article class="card home-section" id="competitionBlock" data-home-section="competition" data-home-title="我的競賽進度"><div class="section-head"><h2>🏆 我的競賽進度</h2><select id="competitionPerson"></select></div><div class="competition-person-filters"><select id="competitionUnit"><option value="">全部區單位</option></select><select id="competitionTeam"><option value="">全部隊伍</option></select><select id="competitionGroup"><option value="">全部組別</option></select></div><div id="competitionProgressCards" class="competition-progress-grid"></div></article>
+
+          <article class="card home-section" id="bonusBlock" data-home-section="bonus" data-home-title="我的獎勵活動"><h2>🎁 我的獎勵活動</h2><div id="bonusCards" class="stack"></div></article>
+          <article class="card home-section" id="top5Block" data-home-section="top5" data-home-title="排行榜 Top 5"><h2>🏆 排行榜 Top 5</h2><div class="tabs"><button class="tab active" data-rank="person">個人</button><button class="tab" data-rank="team">隊伍</button><button class="tab" data-rank="product">商品</button></div><table><thead><tr><th>名次</th><th>名稱</th><th>加權</th></tr></thead><tbody id="top5Rows"></tbody></table><button class="link-btn" data-page="ranking">查看更多排行榜〉</button></article>
+          <article class="card home-section" id="latestBlock" data-home-section="latest" data-home-title="今日戰況"><h2>⚡ 今日戰況（最新5筆）</h2><table><thead><tr><th>時間</th><th>姓名</th><th>商品</th><th>加權</th></tr></thead><tbody id="latestRows"></tbody></table><button class="link-btn" data-page="sales">查看全部戰況〉</button></article>
         </div>
-
-        <div id="customDashboardCards" class="grid custom-dashboard-grid"></div>
-
-        <article class="card" id="dashboardShortcutsCard"><div class="section-head"><h2>⚡ 快捷功能</h2></div><div id="dashboardShortcuts" class="dashboard-shortcuts"></div></article>
-
-        <div class="grid two">
-          <article class="card" id="dashboardOfficeCard"><h2>🎯 通訊處進度</h2><div class="progress-meta"><span>本月目標 <b id="officeTarget">40,000,000</b></span><span>已完成 <b id="officeDone">0</b></span><span class="danger">還差 <b id="officeRemain">0</b></span></div><div class="progress"><i id="officeBar"></i></div><p>達成率 <b id="officeRate">0%</b></p></article>
-          <article class="card"><div class="section-head"><h2>🏆 我的競賽進度</h2><select id="competitionPerson"></select></div><div class="competition-person-filters"><select id="competitionUnit"><option value="">全部區單位</option></select><select id="competitionTeam"><option value="">全部隊伍</option></select><select id="competitionGroup"><option value="">全部組別</option></select></div><div id="competitionProgressCards" class="competition-progress-grid"></div></article>
-        </div>
-
-        <div class="grid three">
-          <article class="card"><h2>🎁 我的獎勵活動</h2><div id="bonusCards" class="stack"></div></article>
-          <article class="card"><h2>🏆 排行榜 Top 5</h2><div class="tabs"><button class="tab active" data-rank="person">個人</button><button class="tab" data-rank="team">隊伍</button><button class="tab" data-rank="product">商品</button></div><table><thead><tr><th>名次</th><th>名稱</th><th>加權</th></tr></thead><tbody id="top5Rows"></tbody></table><button class="link-btn" data-page="ranking">查看更多排行榜〉</button></article>
-          <article class="card"><h2>⚡ 今日戰況（最新5筆）</h2><table><thead><tr><th>時間</th><th>姓名</th><th>商品</th><th>加權</th></tr></thead><tbody id="latestRows"></tbody></table><button class="link-btn" data-page="sales">查看全部戰況〉</button></article>
-        </div>
-
       </section>
 
       <section id="sales" class="page">
@@ -79,7 +80,9 @@
 
       <section id="ranking" class="page"><div class="card"><div class="section-head"><h2>🏆 排行榜</h2><div><select id="rankingType"><option value="person">個人</option><option value="unit">區單位</option><option value="team">隊伍</option><option value="group">組別</option><option value="role">職級</option><option value="product">商品</option></select><button id="exportRanking">匯出 Excel</button></div></div><table><thead><tr><th>名次</th><th>名稱</th><th>實收</th><th>原始加權</th><th>A&H</th><th>加權計績</th></tr></thead><tbody id="rankingRows"></tbody></table></div></section>
 
-      <section id="history" class="page"><div class="card"><div class="section-head"><h2>📊 歷史業績紀錄</h2><button id="exportHistorySales">匯出 Excel</button></div><p class="notice">這裡會自動顯示平台內所有人員已 Key 的報件業績。可快速選擇期間，也可自行拉開始日與結束日。</p><div class="history-range-buttons"><button type="button" data-history-range="today">今天</button><button type="button" data-history-range="week">本週</button><button type="button" data-history-range="month">本月</button><button type="button" data-history-range="quarter">本季</button><button type="button" data-history-range="year">今年</button><button type="button" data-history-range="all">全部</button></div><div class="filters"><input type="date" id="historyStart"><input type="date" id="historyEnd"><input id="historyKeyword" placeholder="搜尋姓名／商品"><select id="historyUnit"><option value="">全部區單位</option></select><select id="historyTeam"><option value="">全部隊伍</option></select><select id="historyRole"><option value="">全部職級</option></select><button id="clearHistoryFilters">清除篩選</button></div><div class="history-summary"><article><span>區間件數</span><strong id="historyCountTotal">0</strong></article><article><span>加權保費</span><strong id="historyWeightedSummary">0</strong></article><article><span>實收保費</span><strong id="historyTwdSummary">0</strong></article><article><span>A&amp;H</span><strong id="historyAHSummary">0</strong></article></div><div class="table-scroll"><table><thead><tr><th>日期</th><th>姓名</th><th>商品</th><th>原始保費</th><th>實收</th><th>加權</th><th>A&H</th><th>區單位</th><th>隊伍</th><th>職級</th></tr></thead><tbody id="historySalesRows"></tbody><tfoot><tr><th colspan="3">總計</th><th id="historyPremiumTotal">0</th><th id="historyTwdTotal">0</th><th id="historyWeightedTotal">0</th><th id="historyAHTotal">0</th><th colspan="3"></th></tr></tfoot></table></div></div></section>
+      <section id="history" class="page"><div class="card"><div class="section-head"><h2>📊 歷史業績紀錄</h2><button id="exportHistorySales">匯出 Excel</button></div><p class="notice">這裡會自動顯示平台內所有人員已 Key 的報件業績。可快速選擇期間，也可自行拉開始日與結束日。</p><div class="history-range-buttons"><button type="button" data-history-range="today">今天</button><button type="button" data-history-range="week">本週</button><button type="button" data-history-range="month">本月</button><button type="button" data-history-range="quarter">本季</button><button type="button" data-history-range="year">今年</button><button type="button" data-history-range="all">全部</button></div><div class="filters"><input type="date" id="historyStart"><input type="date" id="historyEnd"><input id="historyKeyword" placeholder="搜尋姓名／商品"><select id="historyUnit"><option value="">全部區單位</option></select><select id="historyTeam"><option value="">全部隊伍</option></select><select id="historyRole"><option value="">全部職級</option></select><button id="clearHistoryFilters">清除篩選</button></div><div class="history-summary"><article><span>區間件數</span><strong id="historyCountTotal">0</strong></article><article><span>加權保費</span><strong id="historyWeightedSummary">0</strong></article><article><span>實收保費</span><strong id="historyTwdSummary">0</strong></article><article><span>A&amp;H</span><strong id="historyAHSummary">0</strong></article></div><div class="table-scroll"><table><thead><tr><th>日期</th><th>姓名</th><th>商品</th><th>原始保費</th><th>實收</th><th>加權</th><th>A&H</th><th>區單位</th><th>隊伍</th><th>職級</th></tr></thead><tbody id="historySalesRows"></tbody><tfoot><tr><th colspan="3">總計</th><th id="historyPremiumTotal">0</th><th id="historyTwdTotal">0</th><th id="historyWeightedTotal">0</th><th id="historyAHTotal">0</th><th colspan="3"></th></tr></tfoot></table></div></div>
+        <div class="card team-report-card"><div class="section-head"><h2>📋 各隊業績報表</h2></div><p class="notice">選擇日期區間與多個隊伍，可一次匯出同一份 Excel，或開啟繁體中文列印版另存 PDF。</p><div class="team-report-grid"><label>開始日期<input type="date" id="teamReportStart"></label><label>結束日期<input type="date" id="teamReportEnd"></label><label>版型<select id="teamReportLayout"><option value="multi">一頁多隊</option><option value="single">每隊一頁</option></select></label><label>排序<select id="teamReportSort"><option value="weighted">加權高到低</option><option value="name">姓名</option><option value="original">原隊員順序</option></select></label></div><div class="team-report-actions"><button type="button" id="selectAllTeams">全部選取</button><button type="button" id="clearAllTeams">全部取消</button></div><div id="teamReportTeams" class="team-check-grid"></div><h3>顯示欄位</h3><div class="team-check-grid"><label><input type="checkbox" data-team-col="weighted" checked> 加權保費</label><label><input type="checkbox" data-team-col="premium" checked> 實收保費</label><label><input type="checkbox" data-team-col="ah" checked> A&amp;H</label><label><input type="checkbox" data-team-col="count" checked> 件數</label><label><input type="checkbox" data-team-col="activity" checked> 活動率</label></div><div class="form-actions"><button type="button" id="exportTeamExcel">📗 匯出 Excel</button><button type="button" id="exportTeamPdf">📄 匯出 PDF（繁中列印版）</button></div></div>
+      </section>
 
       <section id="admin" class="page">
         <div class="admin-layout">
@@ -107,7 +110,7 @@
   <script src="firebase-config.js?v=official-20260716"></script>
   <script src="seed-data.js?v=official-20260716"></script>
   <script src="firebase-service.js?v=official-20260716"></script>
-  <script src="app.js?v=official-20260716"></script>
-<script src="home-customizer.js?v=20260716r2"></script>
+  <script src="app.js?v=official-20260716-r4"></script>
+<script src="home-customizer.js?v=20260716r4"></script>
 </body>
 </html>

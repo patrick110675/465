@@ -55,3 +55,35 @@
 .official-version{font-size:12px;color:#64748b;text-align:right;padding:0 16px 6px}
 
 .cloud-compact{padding:5px 9px!important;font-size:12px!important;min-height:0!important;border-radius:999px!important}.topbar{position:relative}.top-actions{position:absolute;right:10px;top:8px}.home-advanced{margin-top:22px;padding-top:18px;border-top:1px solid #dbe7f5}.custom-row{display:grid;grid-template-columns:34px 55px 1fr 38px 38px;gap:7px;align-items:center;margin:8px 0}.custom-row input{min-width:0}.custom-row button{padding:8px 4px}#pageTitle{line-height:1.15}@media(max-width:600px){.topbar{padding-top:36px!important}.top-actions{top:5px;right:8px}.official-version{font-size:10px}}
+
+/* OFFICIAL R3: 首頁全區塊排序與各隊報表 */
+.dashboard-sections{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:18px;align-items:start}
+.home-section{grid-column:span 12;min-width:0}
+#dashboardOfficeCard,#competitionBlock{grid-column:span 6}
+#bonusBlock,#top5Block,#latestBlock{grid-column:span 4}
+#homeSectionKpis,#homeSectionCustom,#dashboardShortcutsCard{grid-column:span 12}
+.home-advanced{margin-top:20px}
+.section-sort-row b{flex:1;text-align:left}
+.drag-handle{cursor:grab;color:#64748b;font-size:18px}
+.sort-controls{display:flex;gap:5px;flex-wrap:wrap}
+.sort-controls button{min-width:36px;padding:7px 9px}
+.home-title-editor{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:12px 0}
+.team-report-card{margin-top:18px}
+.team-report-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:12px}
+.team-report-grid label{display:grid;gap:6px;font-weight:700}
+.team-report-actions{display:flex;gap:8px;margin:10px 0}
+.team-check-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:10px 0 16px}
+.team-check-grid label{display:flex;align-items:center;gap:7px;background:#f8fafc;border:1px solid #dbe5f1;border-radius:10px;padding:9px 10px}
+.cloud-compact{position:absolute;right:18px;top:12px;min-height:auto;padding:5px 9px!important;font-size:12px!important;border-radius:999px!important}
+.topbar{position:relative}
+@media(max-width:900px){
+  #dashboardOfficeCard,#competitionBlock,#bonusBlock,#top5Block,#latestBlock{grid-column:span 12}
+  .team-report-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:560px){
+  .dashboard-sections{gap:12px}
+  .team-report-grid{grid-template-columns:1fr}
+  .custom-row{align-items:center;gap:7px}
+  .sort-controls{width:100%;justify-content:flex-end}
+  .cloud-compact{right:8px;top:8px}
+}

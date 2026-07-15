@@ -1,5 +1,5 @@
 const LS_KEY='peakCompetitionV211';
-const APP_VERSION='V2.4.4';
+const APP_VERSION='OFFICIAL-R3';
 const fmt=n=>(Number(n)||0).toLocaleString('zh-TW',{maximumFractionDigits:0});
 const pct=n=>`${Math.round((Number(n)||0)*100)}%`;
 const today=()=>new Date().toISOString().slice(0,10);
@@ -131,6 +131,12 @@ function save(){
   localStorage.setItem(LS_KEY,JSON.stringify(state));
   window.PeakFirebaseService?.queueSync?.(state);
 }
+
+window.PeakHomeAPI={
+  get(){return JSON.parse(JSON.stringify(state.settings.homeCustomizer||{}));},
+  set(config){state.settings.homeCustomizer=JSON.parse(JSON.stringify(config||{}));save();return state.settings.homeCustomizer;},
+  sync(){save();}
+};
 
 function log(action,detail){state.audit.unshift({id:uid(),time:new Date().toISOString(),action,detail});}
 function makeSale(date,userName,productName,premium){
@@ -264,6 +270,10 @@ function bindForms(){
   ['historyStart','historyEnd','historyKeyword','historyUnit','historyTeam','historyRole'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener(id==='historyKeyword'?'input':'change',renderHistory);});
   document.getElementById('clearHistoryFilters')?.addEventListener('click',()=>{['historyStart','historyEnd','historyKeyword'].forEach(id=>document.getElementById(id).value='');['historyUnit','historyTeam','historyRole'].forEach(id=>document.getElementById(id).value='');renderHistory();});
   document.getElementById('exportHistorySales')?.addEventListener('click',()=>exportRows('歷史業績紀錄',getHistorySales().map(s=>({日期:s.date,姓名:s.userName,商品:s.productName,原始保費:s.premium,實收:s.twdPremium,加權:s.contestWeighted,'A&H':s.ahWeighted,區單位:s.unit,隊伍:s.team,職級:s.role})))); document.getElementById('exportRanking')?.addEventListener('click',()=>exportRows('排行榜',getRanking(document.getElementById('rankingType').value)));
+  document.getElementById('selectAllTeams')?.addEventListener('click',()=>document.querySelectorAll('[data-team-report-team]').forEach(x=>x.checked=true));
+  document.getElementById('clearAllTeams')?.addEventListener('click',()=>document.querySelectorAll('[data-team-report-team]').forEach(x=>x.checked=false));
+  document.getElementById('exportTeamExcel')?.addEventListener('click',exportTeamReportExcel);
+  document.getElementById('exportTeamPdf')?.addEventListener('click',exportTeamReportPdf);
   document.querySelectorAll('[data-history-range]').forEach(btn=>btn.addEventListener('click',()=>setHistoryRange(btn.dataset.historyRange))); 
   document.getElementById('platformLogoFile').onchange=e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{state.settings.platformLogo=ev.target.result;save();applyTheme();toast('平台 Logo 已更新');};reader.readAsDataURL(file);}; document.getElementById('removePlatformLogo').onclick=()=>{state.settings.platformLogo='';save();applyTheme();toast('已移除平台 Logo');}; document.getElementById('appIconFile').onchange=e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{state.settings.appIcon=ev.target.result;save();applyTheme();toast('App 圖示已更新；iPhone 請刪除舊捷徑後重新加入主畫面');};reader.readAsDataURL(file);}; document.getElementById('removeAppIcon').onclick=()=>{state.settings.appIcon='';save();applyTheme();toast('已恢復預設圖示');}; document.getElementById('saveTheme').onclick=saveThemeSettings; document.getElementById('defaultTheme').onclick=()=>{state.settings.theme=JSON.parse(JSON.stringify(demo.settings.theme));save();applyTheme();};
 }
@@ -423,15 +433,13 @@ function renderDashboardSettings(p){
   const shortcutRows=Object.entries(cat).map(([key,d])=>{const x=map.get(key)||{key,label:d.label,icon:d.icon,enabled:false};return `<tr><td><input type="checkbox" data-sc-enabled="${key}" ${x.enabled!==false?'checked':''}></td><td><input data-sc-icon="${key}" value="${escapeHtml(x.icon||d.icon)}" maxlength="4"></td><td><input data-sc-label="${key}" value="${escapeHtml(x.label||d.label)}"></td><td><button type="button" class="edit" data-sc-up="${key}">↑</button> <button type="button" class="edit" data-sc-down="${key}">↓</button></td></tr>`}).join('');
   p.innerHTML=`<div class="section-head"><h2>🏠 首頁設定</h2></div>
   <h3>⚡ 首頁快捷鍵管理</h3><div class="notice">預設保留「新增報件」與「排行榜」。可自行勾選、改名稱、改圖示及調整順序。</div><table><thead><tr><th>顯示</th><th>圖示</th><th>名稱</th><th>順序</th></tr></thead><tbody>${shortcutRows}</tbody></table><button type="button" id="saveShortcuts">儲存快捷鍵</button>
-  <hr><h3>首頁方塊顯示／隱藏</h3><div class="widget-toggle-grid">${Object.entries(labels).map(([k,l])=>`<label><input type="checkbox" data-widget="${k}" ${w[k]!==false?'checked':''}> ${l}</label>`).join('')}</div>
-  <div class="notice">首頁設定只負責快捷鍵、方塊顯示與自訂內容。競賽目標請到「🏆 競賽與目標管理」。</div>
+  <div class="notice">首頁所有整區與統計卡的顯示、隱藏和排序，請使用下方「首頁所有區塊排序」。競賽目標請到「🏆 競賽與目標管理」。</div>
   <hr><h3>增加自訂方塊</h3><form id="customCardForm" class="admin-form"><input name="title" placeholder="方塊標題" required><input name="value" placeholder="主要內容／數字" required><input name="note" placeholder="補充說明"><button>新增方塊</button></form>
   <table><thead><tr><th>標題</th><th>內容</th><th>說明</th><th>操作</th></tr></thead><tbody>${state.settings.customCards.map(c=>`<tr><td>${escapeHtml(c.title)}</td><td>${escapeHtml(c.value)}</td><td>${escapeHtml(c.note)}</td><td><button class="delete" data-delete-card="${c.id}">刪除</button></td></tr>`).join('')||'<tr><td colspan="4" class="empty">尚未增加自訂方塊</td></tr>'}</tbody></table>`;
   const readShortcuts=()=>Object.keys(cat).map(key=>({key,enabled:p.querySelector(`[data-sc-enabled="${key}"]`).checked,icon:norm(p.querySelector(`[data-sc-icon="${key}"]`).value)||cat[key].icon,label:norm(p.querySelector(`[data-sc-label="${key}"]`).value)||cat[key].label}));
   p.querySelector('#saveShortcuts').onclick=()=>{const formRows=readShortcuts(), oldOrder=(state.settings.shortcuts||[]).map(x=>x.key);formRows.sort((a,b)=>{let ai=oldOrder.indexOf(a.key),bi=oldOrder.indexOf(b.key);return (ai<0?999:ai)-(bi<0?999:bi)});state.settings.shortcuts=formRows;save();renderDashboard();toast('首頁快捷鍵已更新');};
   const move=(key,dir)=>{let rows=readShortcuts(),i=rows.findIndex(x=>x.key===key),j=i+dir;if(j<0||j>=rows.length)return;[rows[i],rows[j]]=[rows[j],rows[i]];state.settings.shortcuts=rows;save();renderDashboardSettings(p);};
   p.querySelectorAll('[data-sc-up]').forEach(b=>b.onclick=()=>move(b.dataset.scUp,-1));p.querySelectorAll('[data-sc-down]').forEach(b=>b.onclick=()=>move(b.dataset.scDown,1));
-  p.querySelectorAll('[data-widget]').forEach(el=>el.onchange=()=>{state.settings.dashboardWidgets[el.dataset.widget]=el.checked;save();renderDashboard();});
   p.querySelector('#customCardForm').onsubmit=e=>{e.preventDefault();const fd=new FormData(e.target);state.settings.customCards.push({id:uid(),title:norm(fd.get('title')),value:norm(fd.get('value')),note:norm(fd.get('note'))});save();renderDashboard();renderDashboardSettings(p);toast('已新增首頁方塊');};
   p.querySelectorAll('[data-delete-card]').forEach(b=>b.onclick=()=>{state.settings.customCards=state.settings.customCards.filter(c=>c.id!==b.dataset.deleteCard);save();renderDashboard();renderDashboardSettings(p);});
 }
@@ -518,6 +526,7 @@ function getHistorySales(){
 }
 function renderHistory(){
   populateHistoryFilters();
+  populateTeamReportTeams();
   const rows=getHistorySales();
   const body=document.getElementById('historySalesRows'); if(!body)return;
   body.innerHTML=rows.map(s=>`<tr><td>${s.date||''}</td><td>${s.userName||''}</td><td>${s.productName||''}</td><td>${fmt(s.premium||0)}</td><td>${fmt(s.twdPremium||0)}</td><td>${fmt(s.contestWeighted||0)}</td><td>${fmt(s.ahWeighted||0)}</td><td>${s.unit||''}</td><td>${s.team||''}</td><td>${s.role||''}</td></tr>`).join('')||'<tr><td colspan="10" class="empty">目前沒有符合條件的業績資料</td></tr>';
@@ -531,6 +540,60 @@ function renderHistory(){
   document.getElementById('historyTwdSummary').textContent=fmt(sum('twdPremium'));
   document.getElementById('historyAHSummary').textContent=fmt(sum('ahWeighted'));
 }
+
+function populateTeamReportTeams(){
+  const box=document.getElementById('teamReportTeams');if(!box)return;
+  const selected=new Set([...box.querySelectorAll('[data-team-report-team]:checked')].map(x=>x.value));
+  const teams=[...new Set(state.users.map(u=>u.team).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'zh-Hant'));
+  box.innerHTML=teams.map(t=>`<label><input type="checkbox" data-team-report-team value="${escapeHtml(t)}" ${selected.size===0||selected.has(t)?'checked':''}> ${escapeHtml(t)}</label>`).join('')||'<span class="empty">尚無隊伍資料</span>';
+  const hs=document.getElementById('historyStart')?.value||'',he=document.getElementById('historyEnd')?.value||'';
+  const rs=document.getElementById('teamReportStart'),re=document.getElementById('teamReportEnd');
+  if(rs&&!rs.value)rs.value=hs;if(re&&!re.value)re.value=he;
+}
+function selectedTeamReportColumns(){return new Set([...document.querySelectorAll('[data-team-col]:checked')].map(x=>x.dataset.teamCol));}
+function teamReportData(){
+  const start=document.getElementById('teamReportStart')?.value||'',end=document.getElementById('teamReportEnd')?.value||'';
+  const teams=[...document.querySelectorAll('[data-team-report-team]:checked')].map(x=>x.value);
+  if(!teams.length)throw new Error('請至少選擇一個隊伍');
+  const sort=document.getElementById('teamReportSort')?.value||'weighted';
+  const sales=state.sales.filter(s=>(!start||s.date>=start)&&(!end||s.date<=end)&&teams.includes(s.team));
+  const activeCompetition=state.competitions.find(c=>c.active!==false&&c.scope!=='office');
+  return teams.map(team=>{
+    const members=state.users.filter(u=>u.team===team&&u.active!==false);
+    const rows=members.map((u,index)=>{
+      const us=sales.filter(x=>String(x.userId)===String(u.id)||x.userName===u.name);
+      const weighted=sum(us,'contestWeighted'),premium=sum(us,'twdPremium'),ah=sum(us,'ahWeighted');
+      const activity=us.length>0||weighted>0||premium>0||ah>0;
+      return {index,name:u.name,role:u.role||'',weighted,premium,ah,count:us.length,activity};
+    });
+    if(sort==='weighted')rows.sort((a,b)=>b.weighted-a.weighted||a.name.localeCompare(b.name,'zh-Hant'));
+    if(sort==='name')rows.sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant'));
+    return {team,rows,totals:{weighted:rows.reduce((a,x)=>a+x.weighted,0),premium:rows.reduce((a,x)=>a+x.premium,0),ah:rows.reduce((a,x)=>a+x.ah,0),count:rows.reduce((a,x)=>a+x.count,0),activity:rows.filter(x=>x.activity).length,members:rows.length}};
+  });
+}
+function exportTeamReportExcel(){
+  try{
+    const groups=teamReportData(),cols=selectedTeamReportColumns(),wb=XLSX.utils.book_new();
+    groups.forEach(g=>{
+      const rows=g.rows.map(r=>{const o={姓名:r.name,職級:r.role};if(cols.has('weighted'))o['加權保費']=r.weighted;if(cols.has('premium'))o['實收保費']=r.premium;if(cols.has('ah'))o['A&H']=r.ah;if(cols.has('count'))o['件數']=r.count;if(cols.has('activity'))o['活動率']=r.activity?'✅':'';return o;});
+      rows.push({姓名:'合計',職級:`活動 ${g.totals.activity} 人`,...(cols.has('weighted')?{'加權保費':g.totals.weighted}:{}),...(cols.has('premium')?{'實收保費':g.totals.premium}:{}),...(cols.has('ah')?{'A&H':g.totals.ah}:{}),...(cols.has('count')?{'件數':g.totals.count}:{})});
+      const ws=XLSX.utils.json_to_sheet(rows);XLSX.utils.book_append_sheet(wb,ws,String(g.team).slice(0,31));
+    });
+    const start=document.getElementById('teamReportStart')?.value||'全部',end=document.getElementById('teamReportEnd')?.value||'全部';
+    XLSX.writeFile(wb,`各隊業績報表_${start}_${end}.xlsx`);
+  }catch(err){alert(err.message||'匯出失敗')}
+}
+function escapePrint(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+function exportTeamReportPdf(){
+  try{
+    const groups=teamReportData(),cols=selectedTeamReportColumns(),layout=document.getElementById('teamReportLayout')?.value||'multi';
+    const start=document.getElementById('teamReportStart')?.value||'不限',end=document.getElementById('teamReportEnd')?.value||'不限';
+    const tables=groups.map(g=>`<section class="team ${layout==='single'?'page-break':''}"><h2>${escapePrint(g.team)}</h2><table><thead><tr><th>姓名</th>${cols.has('weighted')?'<th>加權保費</th>':''}${cols.has('premium')?'<th>實收保費</th>':''}${cols.has('ah')?'<th>A&amp;H</th>':''}${cols.has('count')?'<th>件數</th>':''}${cols.has('activity')?'<th>活動率</th>':''}</tr></thead><tbody>${g.rows.map(r=>`<tr><td>${escapePrint(r.name)}</td>${cols.has('weighted')?`<td>${fmt(r.weighted)}</td>`:''}${cols.has('premium')?`<td>${fmt(r.premium)}</td>`:''}${cols.has('ah')?`<td>${fmt(r.ah)}</td>`:''}${cols.has('count')?`<td>${r.count}</td>`:''}${cols.has('activity')?`<td>${r.activity?'✅':''}</td>`:''}</tr>`).join('')}<tr class="total"><td>合計</td>${cols.has('weighted')?`<td>${fmt(g.totals.weighted)}</td>`:''}${cols.has('premium')?`<td>${fmt(g.totals.premium)}</td>`:''}${cols.has('ah')?`<td>${fmt(g.totals.ah)}</td>`:''}${cols.has('count')?`<td>${g.totals.count}</td>`:''}${cols.has('activity')?`<td>${g.totals.activity} 人</td>`:''}</tr></tbody></table></section>`).join('');
+    const win=window.open('','_blank');if(!win)throw new Error('瀏覽器阻擋新視窗，請允許彈出視窗後重試');
+    win.document.write(`<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>各隊業績報表</title><style>@page{size:A4 landscape;margin:12mm}*{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;color:#111;margin:0}h1{text-align:center;font-size:22px}p{text-align:center}.report{display:grid;grid-template-columns:${layout==='multi'?'repeat(2,minmax(0,1fr))':'1fr'};gap:14px}.team{break-inside:avoid}.page-break{break-after:page}.page-break:last-child{break-after:auto}h2{background:#dbeafe;margin:0;padding:7px;text-align:center;font-size:17px;border:1px solid #444}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #555;padding:5px;text-align:right}th:first-child,td:first-child{text-align:left}.total{font-weight:700;background:#f3f4f6}.note{font-size:11px;color:#555}@media print{button{display:none}}</style></head><body><h1>${escapePrint(state.settings.platformTitle||'高峰競賽平台')}｜各隊業績報表</h1><p>${escapePrint(start)} ～ ${escapePrint(end)}</p><div class="report">${tables}</div><p class="note">本報表使用瀏覽器原生繁體中文字型列印，請在列印視窗選擇「儲存為 PDF」。</p><script>window.onload=()=>setTimeout(()=>window.print(),350)<\/script></body></html>`);win.document.close();
+  }catch(err){alert(err.message||'PDF 匯出失敗')}
+}
+
 function formatCompetitionPeriod(){const a=state.settings.competitionStart||'';const b=state.settings.competitionEnd||'';if(a&&b)return `${a.replaceAll('-','/')} - ${b.replaceAll('-','/')}`;return state.settings.period||'';}
 function applyTheme(){const t=state.settings.theme||demo.settings.theme;document.documentElement.style.setProperty('--bg',t.bg);document.documentElement.style.setProperty('--primary',t.primary);document.documentElement.style.setProperty('--text',t.text);document.documentElement.style.setProperty('--card',t.card);document.documentElement.style.setProperty('--radius',`${t.radius}px`);bgColor.value=t.bg;primaryColor.value=t.primary;textColor.value=t.text;cardColor.value=t.card;radiusRange.value=t.radius;bannerText.value=state.settings.banner||'新高峰';platformTitleInput.value=state.settings.platformTitle||'高峰競賽平台';competitionStartInput.value=state.settings.competitionStart||'';competitionEndInput.value=state.settings.competitionEnd||'';appNameInput.value=state.settings.appName||'高峰競賽';document.title=`${state.settings.platformTitle||'高峰競賽平台'}｜Peak Competition Platform`;document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute('content',state.settings.appName||'高峰競賽');const logo=document.getElementById('brandLogoImage'),fallback=document.getElementById('brandLogoFallback'),logoPreview=document.getElementById('platformLogoPreview');if(state.settings.platformLogo){logo.src=state.settings.platformLogo;logo.style.display='block';fallback.style.display='none';logoPreview.src=state.settings.platformLogo;logoPreview.style.display='block';}else{logo.removeAttribute('src');logo.style.display='none';fallback.style.display='inline';logoPreview.style.display='none';}const appPreview=document.getElementById('appIconPreview');if(state.settings.appIcon){document.querySelectorAll('link[rel="icon"],link[rel="apple-touch-icon"]').forEach(l=>l.href=state.settings.appIcon);appPreview.src=state.settings.appIcon;appPreview.style.display='block';}else{appPreview.style.display='none';}}
 
