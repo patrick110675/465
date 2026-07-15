@@ -1,5 +1,5 @@
 const LS_KEY='peakCompetitionV211';
-const APP_VERSION='V2.3.0';
+const APP_VERSION='V2.4.0';
 const fmt=n=>(Number(n)||0).toLocaleString('zh-TW',{maximumFractionDigits:0});
 const pct=n=>`${Math.round((Number(n)||0)*100)}%`;
 const today=()=>new Date().toISOString().slice(0,10);
@@ -8,7 +8,7 @@ const uid=()=>Math.random().toString(36).slice(2,10)+Date.now().toString(36).sli
 const norm=v=>String(v??'').trim();
 
 const demo={
-  settings:{banner:'115下半年 新高峰競賽',period:'2026/07/02 - 2026/12/15',officeTarget:40000000,officeDoneManual:0,officeManual:false,peakTargetManual:2650000,peakDoneManual:0,superTargetManual:4000000,superDoneManual:0,competitionManual:false,dashboardWidgets:{todayWeighted:true,todayPremium:true,dailyStar:true,todayCount:true,officeProgress:true,competitionProgress:true,bonus:true,top5:true,latest:true},customCards:[],appName:'高峰競賽',appIcon:'',theme:{bg:'#eef7ff',primary:'#1769e8',text:'#0b1b3d',card:'#ffffff',radius:18}},
+  settings:{banner:'115下半年 新高峰競賽',period:'2026/07/02 - 2026/12/15',officeTarget:40000000,officeDoneManual:0,officeManual:false,peakTargetManual:2650000,peakDoneManual:0,superTargetManual:4000000,superDoneManual:0,competitionManual:false,dashboardWidgets:{todayWeighted:true,todayPremium:true,dailyStar:true,todayCount:true,officeProgress:true,competitionProgress:true,bonus:true,top5:true,latest:true},customCards:[],appName:'高峰競賽',appIcon:'',selectedCompetitionPersonId:'',theme:{bg:'#eef7ff',primary:'#1769e8',text:'#0b1b3d',card:'#ffffff',radius:18}},
   users:[
     {id:uid(),name:'張永朋',unit:'素伶區',team:'靛隊',group:'永朋組',role:'主任',active:true},
     {id:uid(),name:'林志明',unit:'文斌區',team:'紅隊',group:'志明組',role:'主任',active:true},
@@ -60,6 +60,7 @@ function normalizeState(){
   state.settings.customCards=state.settings.customCards||[];
   state.settings.appName=state.settings.appName||'高峰競賽';
   state.settings.appIcon=state.settings.appIcon||'';
+  state.settings.selectedCompetitionPersonId=state.settings.selectedCompetitionPersonId||'';
   state.trash=Array.isArray(state.trash)?state.trash:[];
   state.audit=Array.isArray(state.audit)?state.audit:[];
   state.products=(state.products||[]).map(p=>({subcategory:'',protection:false,mainRider:'主約',...p}));
@@ -165,7 +166,7 @@ function createSale(date,userRef,productRef,premium){
 }
 
 function init(){
-  applyTheme(); bindNav(); fillSelects(); bindForms(); renderAll(); renderAdmin(); bindCloudStatus();
+  applyTheme(); bindNav(); fillSelects(); fillCompetitionPersonSelector(); bindForms(); renderAll(); renderAdmin(); bindCloudStatus();
   connectCloud();
 }
 function bindCloudStatus(){
@@ -185,7 +186,7 @@ async function connectCloud(force=false){
     state={...JSON.parse(JSON.stringify(demo)),...result.state};
     normalizeState();
     localStorage.setItem(LS_KEY,JSON.stringify(state));
-    applyTheme(); fillSelects(); renderAll(); renderAdmin();
+    applyTheme(); fillSelects(); fillCompetitionPersonSelector(); renderAll(); renderAdmin();
     toast('已載入 Firebase 雲端資料');
   }
 }
@@ -200,6 +201,32 @@ function fillSelects(){
   document.getElementById('saleDate').value=today(); document.getElementById('filterDate').value=today();
 }
 function fillFilter(id,arr,label){const el=document.getElementById(id);el.innerHTML=`<option value="">${label}</option>`+arr.map(v=>`<option>${v}</option>`).join('');}
+function canonicalRoles(){
+  const fixed=['區經理','襄理','主任','新進主任','業代','新進業代','特定新進業代'];
+  return [...new Set([...fixed,...state.users.map(u=>u.role).filter(Boolean)])];
+}
+function fillCompetitionPersonSelector(){
+  const person=document.getElementById('competitionPerson'); if(!person)return;
+  const unit=document.getElementById('competitionUnit'),team=document.getElementById('competitionTeam'),group=document.getElementById('competitionGroup');
+  const keep=state.settings.selectedCompetitionPersonId;
+  const fill=(el,values,label)=>{const old=el.value;el.innerHTML=`<option value="">${label}</option>`+values.map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');if(values.includes(old))el.value=old;};
+  fill(unit,[...new Set(state.users.map(x=>x.unit).filter(Boolean))],'全部區單位');
+  fill(team,[...new Set(state.users.map(x=>x.team).filter(Boolean))],'全部隊伍');
+  fill(group,[...new Set(state.users.map(x=>x.group).filter(Boolean))],'全部組別');
+  const redraw=()=>{
+    const rows=state.users.filter(u=>(!unit.value||u.unit===unit.value)&&(!team.value||u.team===team.value)&&(!group.value||u.group===group.value)&&u.active!==false);
+    const selected=person.value||keep||rows[0]?.id||'';
+    person.innerHTML=rows.map(u=>`<option value="${escapeHtml(String(u.id))}">${escapeHtml(u.name)}｜${escapeHtml(u.role||'未設定')}</option>`).join('');
+    if(rows.some(u=>String(u.id)===String(selected)))person.value=selected;
+    state.settings.selectedCompetitionPersonId=person.value||''; localStorage.setItem(LS_KEY,JSON.stringify(state)); renderDashboard();
+  };
+  [unit,team,group].forEach(el=>el.onchange=redraw);
+  person.onchange=()=>{state.settings.selectedCompetitionPersonId=person.value;save();renderDashboard();};
+  redraw();
+}
+function selectedCompetitionPerson(){
+  return state.users.find(u=>String(u.id)===String(state.settings.selectedCompetitionPersonId))||state.users.find(u=>u.name==='張永朋')||state.users[0];
+}
 function bindForms(){
   document.getElementById('saleForm').onsubmit=e=>{
     e.preventDefault();
@@ -245,9 +272,9 @@ function renderDashboard(){
   }else{
     officeTarget.textContent='0'; officeDone.textContent='0'; officeRemain.textContent='0'; officeRate.textContent='0%'; officeBar.style.width='0%';
   }
-  const me=state.users.find(u=>u.name==='張永朋')||state.users[0];
+  const me=selectedCompetitionPerson();
   renderCompetitionProgress(me);
-  renderBonus(mySales); renderTop5(); renderLatest(); applyDashboardWidgets(); renderCustomDashboardCards();
+  renderBonus(competitionSales({start:'',end:''},me),me); renderTop5(); renderLatest(); applyDashboardWidgets(); renderCustomDashboardCards();
 }
 function competitionSales(c,user){
   return state.sales.filter(s=>s.userName===user?.name&&(!c.start||s.date>=c.start)&&(!c.end||s.date<=c.end));
@@ -271,8 +298,7 @@ function renderCompetitionProgress(me){
   const comps=state.competitions.filter(c=>c.active!==false&&c.scope!=='office');
   box.innerHTML=comps.map(c=>{const st=competitionStatus(c,me);const details=st.rows.map(r=>{const configured=r.extra||r.configured!==false;const valueText=configured?`${fmt(r.done)} / ${fmt(r.target)}`:`${fmt(r.done)} / 尚未設定`;const statusText=!configured?'請到競賽管理填入此職級目標':(r.met?'✅ 已達成':`還差 ${fmt(Math.max(r.target-r.done,0))}｜${r.rate.toFixed(1)}%`);return `<div class="competition-metric"><div><b>${escapeHtml(r.extra?r.metric:metricName(r.metric))}</b><span>${valueText}</span></div><div class="progress small"><i style="width:${configured?r.rate:0}%"></i></div><small>${statusText}</small></div>`}).join('')||'<small>尚未啟用任何標準</small>';return `<div class="mini-card competition-card ${st.achieved?'achieved':''}"><div class="competition-title"><b>${escapeHtml(c.name)}</b><span>${st.achieved?'🎉 已達成':(c.logic==='OR'?'任一達成':'全部達成')}</span></div><small>${c.start||'不限'}～${c.end||'不限'}｜職級：${escapeHtml(me?.role||'未設定')}</small>${details}</div>`}).join('')||'<p class="empty">尚未建立競賽目標</p>';
 }
-function renderBonus(mySales){
-  const me=state.users.find(u=>u.name==='張永朋')||state.users[0];
+function renderBonus(mySales,me=selectedCompetitionPerson()){
   bonusCards.innerHTML=state.bonus.filter(b=>b.active!==false).slice(0,6).map(b=>{
     const result=bonusValue(b,mySales,me); if(!result.eligible)return '';
     const val=result.value, unit=b.metric==='count'?'件':''; const rate=Number(b.target)?Math.min(val/Number(b.target)*100,100):0;
@@ -306,7 +332,7 @@ function renderAdmin(){document.querySelectorAll('.admin-tab').forEach(t=>t.clas
   adminForm.onsubmit=e=>{e.preventDefault();const fd=new FormData(adminForm);const obj={id:adminForm.dataset.editId||uid(),active:true};config.fields.forEach(f=>{let v=fd.get(f); if(['originalWeight','contestWeight'].includes(f)) v=parseWeight(v); else if(['year','month','usd','weightedTarget','premiumTarget','target','amount'].includes(f)) v=Number(v); else if(f==='currency') v=String(v||'TWD').toUpperCase(); else if(typeof v==='string') v=norm(v); if(['ah','protection','ahOnly','protectionOnly'].includes(f)) v=v==='true'; obj[f]=v;});
     if(adminForm.dataset.editId){const old=state[config.data].find(x=>x.id===adminForm.dataset.editId);Object.assign(old,obj,{id:old.id});log('修改主檔',`${config.title} ${obj.name||`${obj.year}/${obj.month}`||''}`);}
     else{let existing=null;if(config.data==='rates')existing=state.rates.find(x=>x.year===obj.year&&x.month===obj.month); if(config.data==='products')existing=state.products.find(x=>(x.code&&obj.code&&x.code===obj.code)||(!obj.code&&x.name===obj.name&&String(x.year)===String(obj.year))); if(existing){Object.assign(existing,obj,{id:existing.id});log('修改匯率',`${obj.year}/${obj.month} 美金匯率 ${obj.usd}`);}else{state[config.data].push(obj);log('新增主檔',`${config.title} ${obj.name||obj.year||''}`);}}
-    save();fillSelects();renderAdmin();renderAll();};
+    save();fillSelects();fillCompetitionPersonSelector();renderAdmin();renderAll();};
 }
 
 function renderAdminRows(rows,config){return rows.map(row=>`<tr>${config.fields.map(f=>`<td>${displayField(row[f],f)}</td>`).join('')}<td><button class="edit" onclick="editRow('${config.data}','${row.id}')">修改</button> <button class="delete" onclick="deleteRow('${config.data}','${row.id}')">刪除</button></td></tr>`).join('')||`<tr><td colspan="${config.cols.length+1}" class="empty">尚無資料</td></tr>`;}
@@ -353,7 +379,7 @@ function renderCustomDashboardCards(){
 }
 function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));}
 function renderCompetitionAdmin(p){
-  const roles=[...new Set(state.users.map(u=>u.role).filter(Boolean))];
+  const roles=canonicalRoles();
   p.innerHTML=`<div class="section-head"><h2>🏆 競賽與目標管理</h2><button id="newCompetition">＋新增競賽</button></div><div class="notice">固定標準：加權保費、實收保費、A&H。新高峰與新極峰都保留實收保費；請在各職級列填入目標。可設定全部達成（AND）或任一達成（OR）。</div><div id="competitionEditor"></div><hr><div id="competitionList" class="stack"></div>`;
   const editor=p.querySelector('#competitionEditor'),list=p.querySelector('#competitionList');
   const renderList=()=>{list.innerHTML=state.competitions.map(c=>`<div class="bonus-item"><div class="bonus-line"><b>${escapeHtml(c.name)}</b><span>${c.scope==='office'?'通訊處':'個人'}｜${c.active!==false?'啟用':'停用'}｜${c.logic}</span></div><div class="bonus-line"><span>${c.start||'不限'}～${c.end||'不限'}</span><span>${Object.keys(c.targets||{}).length} 個職級</span></div><div><button class="edit" data-edit-comp="${c.id}">修改</button> <button class="delete" data-del-comp="${c.id}">刪除</button></div></div>`).join('')||'<p class="empty">尚無競賽</p>';list.querySelectorAll('[data-edit-comp]').forEach(b=>b.onclick=()=>openEditor(state.competitions.find(c=>c.id===b.dataset.editComp)));list.querySelectorAll('[data-del-comp]').forEach(b=>b.onclick=()=>{if(confirm('確定刪除競賽？')){moveToTrash('competitions',b.dataset.delComp);renderDashboard();renderList();}})};
@@ -411,13 +437,24 @@ function permanentDeleteTrash(trashId){if(!confirm('永久刪除後無法還原�
 
 window.deleteRow=deleteRow; window.editRow=editRow; window.showPersonDetail=showPersonDetail; window.restoreTrash=restoreTrash;
 
-function bindImport(){downloadTemplate.onclick=()=>downloadTemplateFile(importType.value);importFile.onchange=readImportFile;confirmImport.onclick=confirmImport;}
+function bindImport(){downloadTemplate.onclick=()=>downloadTemplateFile(importType.value);importFile.onchange=readImportFile;confirmImport.onclick=confirmImport;const b=document.getElementById('importBuiltInData');if(b)b.onclick=importBuiltIn115Data;}
+function importBuiltIn115Data(){
+  const seed=window.PEAK_SEED_DATA;if(!seed){toast('找不到內建資料');return;}
+  if(!confirm(`將匯入 ${seed.source.people} 位人員、${seed.source.products} 項商品、${seed.source.sales} 筆業績，確定嗎？`))return;
+  const merge=(target,rows,keyFn)=>{const map=new Map(target.map(x=>[keyFn(x),x]));rows.forEach(r=>{const k=keyFn(r);if(map.has(k))Object.assign(map.get(k),r,{id:map.get(k).id||r.id});else target.push(JSON.parse(JSON.stringify(r)));});};
+  merge(state.users,seed.users,x=>x.name);
+  merge(state.products,seed.products,x=>x.code||`${x.name}|${x.year}`);
+  merge(state.rates,seed.rates,x=>`${x.year}-${x.month}`);
+  merge(state.sales,seed.sales,x=>x.id);
+  seed.competitions.forEach(c=>{const old=state.competitions.find(x=>x.name===c.name&&x.start===c.start&&x.end===c.end);if(old)Object.assign(old,c,{id:old.id});else state.competitions.push(JSON.parse(JSON.stringify(c)));});
+  log('匯入內建115資料',JSON.stringify(seed.source));save();fillSelects();fillCompetitionPersonSelector();renderAll();renderAdmin();toast('115 資料已匯入並排程同步 Firebase');
+}
 function readImportFile(e){const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{const wb=XLSX.read(ev.target.result,{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];pendingImport=XLSX.utils.sheet_to_json(ws,{defval:''});renderImportPreview();};reader.readAsArrayBuffer(file);}
 function mapRow(row,type){const get=(...keys)=>{for(const k of keys){if(row[k]!==undefined&&row[k]!=='')return row[k]}return ''}; if(type==='people')return {id:uid(),name:norm(get('姓名','業務員','姓名(中文)')),unit:norm(get('區單位','單位')),team:norm(get('隊伍','隊名')),group:norm(get('組別','小組')),role:norm(get('職級','職稱')),active:true}; if(type==='products'){const name=norm(get('商品名稱','商品','名稱','商品名')); const code=norm(get('商品代碼','險種','險種代碼')); const category=norm(get('商品類別','類別')); const currencyRaw=norm(get('幣別','幣種')); const currency=currencyRaw||(name.includes('美元')||code.includes('(S)')||code.startsWith('U')?'USD':'TWD'); return {id:uid(),name,code,year:norm(get('年期','繳費年期','繳費年期')),currency:currency.toUpperCase(),category,subcategory:norm(get('商品次類','次類')),protection:String(get('保障型','是否保障型')).includes('是'),mainRider:norm(get('主約/附約','主附約'))||'主約',originalWeight:parseWeight(get('原始加權','原始倍率')),contestWeight:parseWeight(get('競賽加權','競賽倍率','加權')),ah:category.includes('Health')||category.includes('A&H')||String(get('A&H','AH')).includes('是'),active:true};} if(type==='rates')return {id:uid(),year:Number(get('年度','年'))||new Date().getFullYear(),month:Number(get('月份','月')),usd:Number(get('匯率','美金匯率','美元匯率'))}; if(type==='sales'){const user=state.users.find(u=>u.name===get('姓名','業務員'));const prod=state.products.find(p=>p.name===get('商品','商品名稱')||p.code===get('商品代碼','險種'));if(!user||!prod)return {error:'找不到人員或商品',raw:row};try{return createSale(toDate(get('日期','報件日')),user.id,prod.id,Number(get('保費','原始保費','實收')))}catch(err){return {error:err.message,raw:row}}} if(type==='bonus')return {id:uid(),name:get('活動名稱','名稱'),start:toDate(get('開始日期','開始')),deadline:toDate(get('截止日期','結束日期','日期')),metric:get('計算方式')||'weighted',target:Number(get('目標','達成業績')),amount:Number(get('獎金')),category:get('商品大類','商品類別'),subcategory:get('商品次類','次類'),products:get('指定商品','商品'),ahOnly:String(get('只抓A&H','A&H')).includes('是'),protectionOnly:String(get('只抓保障型','保障型')).includes('是'),roles:get('適用職級','職級'),units:get('適用區單位','區單位'),teams:get('適用隊伍','隊伍'),groups:get('適用組別','組別'),active:true}; if(type==='competitions')return {id:uid(),name:get('競賽名稱','名稱'),scope:'personal',start:toDate(get('開始日期','開始')),end:toDate(get('結束日期','結束')),role:get('職級'),weightedTarget:Number(get('加權目標')),premiumTarget:Number(get('實收目標')),ahTarget:Number(get('A&H目標','AH目標')),reward:get('獎勵')};}
 function parseWeight(v){let s=String(v).replace('%','').trim();let n=Number(s);if(!n)return 0;return n>10?n/100:n}
 function toDate(v){if(v instanceof Date)return v.toISOString().slice(0,10);if(typeof v==='number'){const d=XLSX.SSF.parse_date_code(v);return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`}return String(v||today()).replaceAll('/','-')}
 function renderImportPreview(){const type=importType.value;const mapped=pendingImport.map(r=>mapRow(r,type)).map(r=>(type==='products'&&!r.name)?{error:'缺少商品名稱',raw:r}:r);importPreview.innerHTML=`<h3>預覽 ${mapped.length} 筆</h3><div class="card"><table><tbody>${mapped.slice(0,8).map(r=>`<tr><td>${r.error?'⚠️ '+r.error:Object.values(r).slice(1,7).join('｜')}</td></tr>`).join('')}</tbody></table></div>`;confirmImport.disabled=!mapped.length;}
-function confirmImport(){const type=importType.value;const mapped=pendingImport.map(r=>mapRow(r,type)).filter(r=>!r.error).filter(r=>type!=='people'||r.name).filter(r=>type!=='products'||r.name);const collection={people:'users',products:'products',rates:'rates',sales:'sales',bonus:'bonus',competitions:'competitions'}[type];let added=0,updated=0;mapped.forEach(item=>{let existing=null;if(type==='people')existing=state.users.find(x=>x.name===item.name);if(type==='products')existing=state.products.find(x=>(x.code&&item.code&&x.code===item.code)||(!item.code&&x.name===item.name&&String(x.year)===String(item.year)));if(type==='rates')existing=state.rates.find(x=>x.year===item.year&&x.month===item.month);if(existing){Object.assign(existing,item,{id:existing.id});updated++;}else{state[collection].push(item);added++;}});log('匯入資料',`${type} 新增 ${added} 更新 ${updated}`);if(type==='competitions')state.competitions=migrateCompetitions(state.competitions);save();fillSelects();renderAll();renderAdmin();toast(`匯入完成：新增 ${added}，更新 ${updated}`);}
+function confirmImport(){const type=importType.value;const mapped=pendingImport.map(r=>mapRow(r,type)).filter(r=>!r.error).filter(r=>type!=='people'||r.name).filter(r=>type!=='products'||r.name);const collection={people:'users',products:'products',rates:'rates',sales:'sales',bonus:'bonus',competitions:'competitions'}[type];let added=0,updated=0;mapped.forEach(item=>{let existing=null;if(type==='people')existing=state.users.find(x=>x.name===item.name);if(type==='products')existing=state.products.find(x=>(x.code&&item.code&&x.code===item.code)||(!item.code&&x.name===item.name&&String(x.year)===String(item.year)));if(type==='rates')existing=state.rates.find(x=>x.year===item.year&&x.month===item.month);if(existing){Object.assign(existing,item,{id:existing.id});updated++;}else{state[collection].push(item);added++;}});log('匯入資料',`${type} 新增 ${added} 更新 ${updated}`);if(type==='competitions')state.competitions=migrateCompetitions(state.competitions);save();fillSelects();fillCompetitionPersonSelector();renderAll();renderAdmin();toast(`匯入完成：新增 ${added}，更新 ${updated}`);}
 function downloadTemplateFile(type){const templates={people:[{姓名:'張永朋',區單位:'素伶區',隊伍:'靛隊',組別:'永朋組',職級:'主任'}],products:[{商品名稱:'BVA',商品代碼:'BVA3',年期:'躉繳',幣別:'TWD',原始加權:'5%',競賽加權:'5%',商品類別:'ILP'},{商品名稱:'WEHS 20年',商品代碼:'20(G)WEHS',年期:'20',幣別:'TWD',原始加權:'300%',競賽加權:'300%',商品類別:'Health'}],rates:[{年度:2026,月份:7,美金匯率:31.57333}],sales:[{日期:today(),姓名:'張永朋',商品:'BVA',保費:500000}],bonus:[{活動名稱:'醫療險衝刺獎',開始日期:'2026-07-01',截止日期:'2026-07-31',計算方式:'weighted',目標:300000,獎金:5000,商品大類:'Health',指定商品:'','只抓A&H':'否',只抓保障型:'否',適用職級:'主任,業代'}],competitions:[{競賽名稱:'新高峰',開始日期:'2026-07-02',結束日期:'2026-12-15',職級:'主任',加權目標:2650000,實收目標:20000000,'A&H目標':0,獎勵:'日本關西'}]};exportRows(`${type}_template`,templates[type]);}
 
 function exportRows(name,rows){const ws=XLSX.utils.json_to_sheet(rows);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'資料');XLSX.writeFile(wb,`${name}.xlsx`)}

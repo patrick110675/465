@@ -168,7 +168,7 @@
       writes.push({
         update: {
           name: docName('settings', 'main'),
-          fields: encodeFields({ ...clone(current.settings || {}), updatedAt: new Date().toISOString(), appVersion: '2.3.0' })
+          fields: encodeFields({ ...clone(current.settings || {}), updatedAt: new Date().toISOString(), appVersion: '2.4.0' })
         }
       });
     }
@@ -297,12 +297,15 @@
     if (pendingState) queueSync(pendingState, 100);
   });
 
+  async function testConnection(){const id='health-'+Date.now();await request(`${baseUrl()}/diagnostics/${id}`,{method:'PATCH',body:JSON.stringify({fields:encodeFields({ok:true,time:new Date().toISOString()})})});return true;}
+
   window.PeakFirebaseService = {
     connect,
     syncNow,
     queueSync,
     downloadAll,
     isConnected: () => connected,
-    getLastError: () => lastError
+    getLastError: () => lastError,
+    testConnection
   };
 })();

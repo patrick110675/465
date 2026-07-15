@@ -16,3 +16,5 @@
 .cloud-status.error{background:#fff3f1;color:#c43d32;border-color:#ffc8c2}
 .trash-list{display:grid;gap:12px}.trash-list .bonus-item{display:flex;justify-content:space-between;align-items:center;gap:16px}
 @media(max-width:760px){.top-actions{align-items:stretch}.cloud-status{width:100%;text-align:left}.trash-list .bonus-item{align-items:flex-start;flex-direction:column}.trash-list .bonus-item>div:last-child{width:100%;display:flex;gap:8px}.trash-list button{flex:1}}
+
+.cloud-status{border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:8px 12px;font-weight:700;white-space:nowrap}.cloud-status.synced{color:#15803d;background:#ecfdf5}.cloud-status.error{color:#b45309;background:#fffbeb}.competition-person-filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.competition-person-filters select,#competitionPerson{max-width:220px;padding:8px;border:1px solid #dbe4f0;border-radius:10px;background:#fff}@media(max-width:700px){.top-actions{flex-wrap:wrap}.cloud-status{order:2}.competition-person-filters select,#competitionPerson{max-width:100%;width:100%}}
