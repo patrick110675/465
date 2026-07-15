@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Firebase 連線測試</title>
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC",sans-serif;background:#eef6ff;color:#0b2145;margin:0;padding:24px}
+.card{max-width:720px;margin:auto;background:#fff;border-radius:22px;padding:22px;box-shadow:0 8px 30px rgba(20,60,120,.12)}
+button{width:100%;padding:16px;border:0;border-radius:14px;background:#1677ff;color:white;font-weight:800;font-size:18px;margin:8px 0}
+pre{white-space:pre-wrap;word-break:break-word;background:#f4f7fb;border-radius:14px;padding:14px;min-height:180px}
+.ok{color:#087f3f}.bad{color:#c72c2c}.muted{color:#64748b}
+</style>
+</head>
+<body>
+<div class="card">
+<h1>Firebase 連線測試</h1>
+<p class="muted">這個頁面只測試 Firestore 是否能讀寫，不會修改正式資料。</p>
+<button id="testBtn">開始測試連線</button>
+<button id="clearBtn" style="background:#64748b">清除結果</button>
+<h3 id="status">尚未測試</h3>
+<pre id="log"></pre>
+</div>
+<script src="firebase-config.js"></script>
+<script>
+const statusEl=document.getElementById('status');
+const logEl=document.getElementById('log');
+function log(msg,obj){logEl.textContent += msg + (obj?'\n'+JSON.stringify(obj,null,2):'') + '\n\n';}
+async function run(){
+  logEl.textContent='';
+  const c=window.firebaseConfig||{};
+  if(!c.projectId||!c.apiKey){statusEl.textContent='❌ Firebase 設定不完整';statusEl.className='bad';return;}
+  statusEl.textContent='⏳ 測試中…';statusEl.className='';
+  const base=`https://firestore.googleapis.com/v1/projects/${encodeURIComponent(c.projectId)}/databases/(default)/documents`;
+  const key=`key=${encodeURIComponent(c.apiKey)}`;
+  const docUrl=`${base}/diagnostics/connection-test?${key}`;
+  try{
+    log('1. 測試寫入…');
+    const write=await fetch(docUrl,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields:{message:{stringValue:'Peak Competition Platform connection test'},testedAt:{timestampValue:new Date().toISOString()},userAgent:{stringValue:navigator.userAgent}}})});
+    const wt=await write.text(); let wj; try{wj=wt?JSON.parse(wt):null}catch{wj=wt}
+    log(`寫入回應 HTTP ${write.status}`,wj);
+    if(!write.ok) throw new Error((wj&&wj.error&&wj.error.message)||`寫入失敗 HTTP ${write.status}`);
+
+    log('2. 測試讀取…');
+    const read=await fetch(docUrl);
+    const rt=await read.text(); let rj; try{rj=rt?JSON.parse(rt):null}catch{rj=rt}
+    log(`讀取回應 HTTP ${read.status}`,rj);
+    if(!read.ok) throw new Error((rj&&rj.error&&rj.error.message)||`讀取失敗 HTTP ${read.status}`);
+
+    statusEl.textContent='✅ Firestore 讀寫成功';statusEl.className='ok';
+  }catch(err){
+    statusEl.textContent='❌ Firestore 連線失敗';statusEl.className='bad';
+    log('錯誤：'+(err&&err.message?err.message:String(err)));
+  }
+}
+document.getElementById('testBtn').onclick=run;
+document.getElementById('clearBtn').onclick=()=>{logEl.textContent='';statusEl.textContent='尚未測試';statusEl.className='';};
+</script>
+</body>
+</html>
