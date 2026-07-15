@@ -73,3 +73,12 @@ firebase deploy
 - 新高峰／新極峰目標與已完成業績可手動輸入或使用自動計算。
 - 我的獎勵活動可在管理中心新增、修改、刪除。
 - 已填入 team-587a0 Firebase Web App 設定。注意：本版主要資料仍存於瀏覽器 LocalStorage，Firestore 集合式同步尚未完成。
+
+## V2.0 Firestore 同步
+- 已載入 Firebase App / Firestore SDK。
+- 全站狀態同步到 `appData/main`，並保留 LocalStorage 離線備援。
+- 首次連線若雲端無資料，會將目前資料上傳；之後以雲端資料為主。
+- 匯率輸入支援小數點後 5 位。
+
+### Firestore 規則（測試階段）
+請在 Firebase Console > Firestore Database > 規則，允許 `appData/main` 讀寫。正式上線前應改成管理員驗證規則。

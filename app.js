@@ -52,7 +52,12 @@ let rankMode='person';
 let currentAdmin='people';
 
 function load(){const raw=localStorage.getItem(LS_KEY); if(raw) return JSON.parse(raw); localStorage.setItem(LS_KEY,JSON.stringify(demo)); return JSON.parse(JSON.stringify(demo));}
-function save(){localStorage.setItem(LS_KEY,JSON.stringify(state));}
+function save(){
+  localStorage.setItem(LS_KEY,JSON.stringify(state));
+  if(window.PeakFirebaseService?.enabled){
+    window.PeakFirebaseService.saveState(state).catch(err=>console.warn('Firestore 儲存失敗：',err));
+  }
+}
 function log(action,detail){state.audit.unshift({id:uid(),time:new Date().toISOString(),action,detail});}
 function makeSale(date,userName,productName,premium){
   const u=(demo.users||state?.users||[]).find(x=>x.name===userName); const p=(demo.products||state?.products||[]).find(x=>x.name===productName); if(!u||!p)return null;
@@ -67,7 +72,19 @@ function createSale(date,userId,productId,premium){
   return {id:uid(),date,userId:u.id,userName:u.name,unit:u.unit,team:u.team,group:u.group,role:u.role,productId:p.id,productName:p.name,productCode:p.code,premium:Number(premium),currency:p.currency,usdRate:rate,twdPremium:twd,originalWeighted:twd*p.originalWeight,contestWeighted:twd*p.contestWeight,ahWeighted:p.ah?twd*p.contestWeight:0,createdAt:new Date().toISOString()};
 }
 
-function init(){applyTheme(); bindNav(); fillSelects(); bindForms(); renderAll(); renderAdmin();}
+async function init(){
+  applyTheme(); bindNav(); fillSelects(); bindForms(); renderAll(); renderAdmin();
+  const svc=window.PeakFirebaseService;
+  if(svc && await svc.init()){
+    try{
+      const cloudState=await svc.loadState();
+      if(cloudState){ state=cloudState; localStorage.setItem(LS_KEY,JSON.stringify(state)); }
+      else { await svc.saveState(state); }
+      applyTheme(); renderAll(); renderAdmin();
+      toast('Firebase 雲端資料已同步');
+    }catch(err){ console.warn('Firebase 同步失敗，繼續使用本機資料：',err); }
+  }
+}
 function bindNav(){document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>showPage(b.dataset.page));document.querySelectorAll('[data-admin-tab]').forEach(b=>b.onclick=()=>{showPage('admin');currentAdmin=b.dataset.adminTab;renderAdmin();});document.querySelectorAll('.admin-tab').forEach(b=>b.onclick=()=>{currentAdmin=b.dataset.admin;renderAdmin();});document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');rankMode=b.dataset.rank;renderTop5();});document.getElementById('quickSearch').oninput=e=>quickSearch(e.target.value);}
 function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById(id)?.classList.add('active');document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===id));}
 function fillSelects(){
