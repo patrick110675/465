@@ -36,7 +36,7 @@
     <main class="main">
       <header class="topbar">
         <div><h1 id="pageTitle">高峰競賽平台 👋</h1><p id="competitionSubtitle">115下半年 新高峰競賽｜2026/07/02 - 2026/12/15</p></div>
-        <div class="top-actions"><button id="cloudSyncStatus" class="cloud-status" type="button" title="點擊重新連線">⏳ 連線中</button><input id="quickSearch" placeholder="快速搜尋：人員 / 商品 / 活動"/></div>
+        <div class="top-actions"><button id="cloudSyncStatus" class="cloud-status" type="button" title="點擊重新連線">⏳ 連線中</button><div class="quick-search-wrap"><input id="quickSearch" autocomplete="off" placeholder="快速搜尋：輸入 1 個字找人員／商品／活動"/><div id="quickSearchResults" class="search-results" hidden></div></div></div>
       </header>
 
       <section id="dashboard" class="page active">
@@ -67,8 +67,8 @@
         <div class="card"><div class="section-head"><h2>📝 每日報件</h2><div><button id="exportSales">匯出 Excel</button><button id="printSales">PDF 報表</button></div></div>
           <form id="saleForm" class="form-grid">
             <input type="date" id="saleDate" required />
-            <select id="saleUser" required></select>
-            <select id="saleProduct" required></select>
+            <div class="autocomplete-field"><input id="saleUser" autocomplete="off" placeholder="輸入姓名關鍵字（打一個字即可搜尋）" required><div id="saleUserSuggestions" class="autocomplete-menu" hidden></div></div>
+            <div class="autocomplete-field"><input id="saleProduct" autocomplete="off" placeholder="輸入商品名稱／代碼關鍵字" required><div id="saleProductSuggestions" class="autocomplete-menu" hidden></div></div>
             <input type="number" id="salePremium" placeholder="原始保費" required />
             <button type="submit">新增報件</button>
           </form>
@@ -79,7 +79,7 @@
 
       <section id="ranking" class="page"><div class="card"><div class="section-head"><h2>🏆 排行榜</h2><div><select id="rankingType"><option value="person">個人</option><option value="unit">區單位</option><option value="team">隊伍</option><option value="group">組別</option><option value="role">職級</option><option value="product">商品</option></select><button id="exportRanking">匯出 Excel</button></div></div><table><thead><tr><th>名次</th><th>名稱</th><th>實收</th><th>原始加權</th><th>A&H</th><th>加權計績</th></tr></thead><tbody id="rankingRows"></tbody></table></div></section>
 
-      <section id="history" class="page"><div class="card"><div class="section-head"><h2>📊 歷史資料</h2><button id="archiveNow">一鍵封存目前競賽</button></div><div id="historyList" class="stack"></div></div></section>
+      <section id="history" class="page"><div class="card"><div class="section-head"><h2>📊 歷史資料</h2><button id="archiveNow">封存已結束競賽</button></div><p class="notice">封存會保存當下排行榜與業績快照，不會刪除原始報件。按下後會先顯示競賽名稱、期間與資料筆數，再次確認才會執行。</p><div id="historyList" class="stack"></div></div></section>
 
       <section id="admin" class="page">
         <div class="admin-layout">
