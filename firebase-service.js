@@ -153,12 +153,14 @@
   }
 
   async function downloadAll() {
-    const settingsDoc = await getDocument('settings', 'main');
+    const names = [...new Set(Object.values(COLLECTION_MAP))];
+    const [settingsDoc, ...rows] = await Promise.all([
+      getDocument('settings', 'main'),
+      ...names.map(name => listCollection(name))
+    ]);
     const collections = {};
-    for (const collection of Object.values(COLLECTION_MAP)) {
-      collections[collection] = await listCollection(collection);
-    }
-    const hasData = Boolean(settingsDoc) || Object.values(collections).some(rows => rows.length > 0);
+    names.forEach((name, i) => { collections[name] = rows[i] || []; });
+    const hasData = Boolean(settingsDoc) || Object.values(collections).some(items => items.length > 0);
     return hasData ? buildStateFromRemote(settingsDoc, collections) : null;
   }
 
@@ -227,14 +229,8 @@
       }
 
       baseline = clone(remote);
-      const remoteUpdated = Date.parse(remote.settings?.updatedAt || '') || 0;
-      const localUpdated = Date.parse(localState?.settings?.localUpdatedAt || '') || 0;
-
-      if (localUpdated > remoteUpdated) {
-        await syncNow(localState);
-        return { connected: true, state: null, uploadedLocal: true };
-      }
-
+      // 只要 Firebase 已有正式資料，初始化時一律下載雲端。
+      // 不再用新裝置本機時間判斷上傳，避免 8 位示範資料覆蓋 people。
       dispatch('synced', '已載入 Firebase 雲端資料');
       return { connected: true, state: remote, uploadedLocal: false };
     } catch (error) {
