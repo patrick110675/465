@@ -29,6 +29,11 @@
 
   const clone = (value) => JSON.parse(JSON.stringify(value, (_k, v) => v === undefined ? null : v));
   const stable = (value) => JSON.stringify(value ?? null);
+  const coreCount = (value) => ['users','products','sales'].reduce((n,key)=>n+((value?.[key]||[]).length),0);
+  const looksLikeDemo = (value) => {
+    const names=new Set((value?.users||[]).map(x=>x.name));
+    return (value?.users||[]).length<=8 && ['張永朋','林志明','蔡汪霖'].filter(x=>names.has(x)).length>=2;
+  };
 
   function config() {
     return window.firebaseConfig || {};
@@ -205,7 +210,7 @@
     return writes;
   }
 
-  async function connect(localState) {
+  async function connect(localState, options = {}) {
     const cfg = config();
     if (!cfg.projectId || !cfg.apiKey) {
       lastError = 'Firebase 設定不完整';
@@ -222,20 +227,31 @@
 
       if (!remote) {
         baseline = null;
-        await syncNow(localState);
-        return { connected: true, state: null, uploadedLocal: true };
+        if (coreCount(localState) > 0 && !looksLikeDemo(localState)) {
+          await syncNow(localState);
+          return { connected: true, state: null, uploadedLocal: true };
+        }
+        dispatch('synced', 'Firebase 已連線，雲端尚無正式資料');
+        return { connected: true, state: null, uploadedLocal: false };
       }
 
       baseline = clone(remote);
-      const remoteUpdated = Date.parse(remote.settings?.updatedAt || '') || 0;
-      const localUpdated = Date.parse(localState?.settings?.localUpdatedAt || '') || 0;
+      const remoteCore = coreCount(remote);
+      const localCore = coreCount(localState);
 
-      if (localUpdated > remoteUpdated) {
+      // 新裝置與首次開啟一律以 Firebase 正式資料為準，避免本機示範名單覆蓋雲端。
+      if (remoteCore > 0 || options.initialLoad) {
+        dispatch('synced', `已載入 Firebase 雲端資料（人員 ${(remote.users||[]).length} 位）`);
+        return { connected: true, state: remote, uploadedLocal: false };
+      }
+
+      // 雲端確實沒有核心資料時，才允許上傳非示範的本機正式資料。
+      if (localCore > 0 && !looksLikeDemo(localState)) {
         await syncNow(localState);
         return { connected: true, state: null, uploadedLocal: true };
       }
 
-      dispatch('synced', '已載入 Firebase 雲端資料');
+      dispatch('synced', 'Firebase 已連線，等待正式資料');
       return { connected: true, state: remote, uploadedLocal: false };
     } catch (error) {
       connected = false;

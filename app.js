@@ -1,5 +1,5 @@
 const LS_KEY='peakCompetitionV211';
-const APP_VERSION='OFFICIAL-R3';
+const APP_VERSION='OFFICIAL-CLOUD-ORDER-FIX';
 const fmt=n=>(Number(n)||0).toLocaleString('zh-TW',{maximumFractionDigits:0});
 const pct=n=>`${Math.round((Number(n)||0)*100)}%`;
 const today=()=>new Date().toISOString().slice(0,10);
@@ -48,14 +48,21 @@ demo.sales=[
 ].filter(Boolean);
 
 let state=load();
-normalizeState();
+normalizeState({persist:false});
 let pendingImport=[];
 let rankMode='person';
 let currentAdmin='people';
 
 
-function normalizeState(){
+function normalizeState(options={}){
   state.settings={...demo.settings,...(state.settings||{})};
+  state.users=Array.isArray(state.users)?state.users:[];
+  state.products=Array.isArray(state.products)?state.products:[];
+  state.rates=Array.isArray(state.rates)?state.rates:[];
+  state.sales=Array.isArray(state.sales)?state.sales:[];
+  state.history=Array.isArray(state.history)?state.history:[];
+  state.bonus=Array.isArray(state.bonus)?state.bonus:[];
+  state.competitions=Array.isArray(state.competitions)?state.competitions:[];
   state.settings.dashboardWidgets={...demo.settings.dashboardWidgets,...(state.settings.dashboardWidgets||{})};
   state.settings.customCards=state.settings.customCards||[];
   state.settings.appName=state.settings.appName||'高峰競賽';
@@ -81,7 +88,7 @@ function normalizeState(){
   if(!state.competitions.some(c=>c.scope==='office')){
     state.competitions.unshift(normalizeCompetition({id:uid(),name:'通訊處進度',scope:'office',start:'',end:'',logic:'AND',active:true,manualEnabled:!!state.settings.officeManual,manualValues:{weighted:Number(state.settings.officeDoneManual||0),premium:0,ah:0},metrics:{weighted:{enabled:true},premium:{enabled:false},ah:{enabled:false}},targets:{'通訊處':{weighted:Number(state.settings.officeTarget||40000000),premium:0,ah:0}},extraConditions:[]}));
   }
-  save();
+  if(options.persist) save();
 }
 function migrateCompetitions(rows){
   if(!rows.length)return [];
@@ -124,7 +131,19 @@ function bonusValue(bonus,userSales,user){
   return {value:bonus.metric==='count'?data.length:sum(data,key),eligible:true,data};
 }
 
-function load(){const raw=localStorage.getItem(LS_KEY); if(raw) return JSON.parse(raw); localStorage.setItem(LS_KEY,JSON.stringify(demo)); return JSON.parse(JSON.stringify(demo));}
+function emptyState(){
+  return {
+    settings:JSON.parse(JSON.stringify(demo.settings)),
+    users:[],products:[],rates:[],competitions:[],bonus:[],sales:[],history:[],audit:[],trash:[]
+  };
+}
+function load(){
+  const raw=localStorage.getItem(LS_KEY);
+  if(raw){
+    try{return JSON.parse(raw)}catch(_err){localStorage.removeItem(LS_KEY)}
+  }
+  return emptyState();
+}
 function save(){
   state.settings=state.settings||{};
   state.settings.localUpdatedAt=new Date().toISOString();
@@ -140,8 +159,8 @@ window.PeakHomeAPI={
 
 function log(action,detail){state.audit.unshift({id:uid(),time:new Date().toISOString(),action,detail});}
 function makeSale(date,userName,productName,premium){
-  const u=(demo.users||state?.users||[]).find(x=>x.name===userName); const p=(demo.products||state?.products||[]).find(x=>x.name===productName); if(!u||!p)return null;
-  const y=Number(date.slice(0,4)),m=Number(date.slice(5,7)); const rate=(p.currency==='USD')?((demo.rates||state?.rates||[]).find(r=>r.year===y&&r.month===m)?.usd||1):1;
+  const u=(state?.users||demo.users||[]).find(x=>x.name===userName); const p=(state?.products||demo.products||[]).find(x=>x.name===productName); if(!u||!p)return null;
+  const y=Number(date.slice(0,4)),m=Number(date.slice(5,7)); const rate=(p.currency==='USD')?((state?.rates||demo.rates||[]).find(r=>r.year===y&&r.month===m)?.usd||1):1;
   const twd=Number(premium)*rate; return {id:uid(),date,userId:u.id,userName:u.name,productId:p.id,productName:p.name,productCode:p.code,premium:Number(premium),currency:p.currency,usdRate:rate,twdPremium:twd,originalWeighted:twd*p.originalWeight,contestWeighted:twd*p.contestWeight,ahWeighted:p.ah?twd*p.contestWeight:0,createdAt:new Date().toISOString()};
 }
 function findSaleUser(ref){
@@ -173,30 +192,36 @@ function createSale(date,userRef,productRef,premium){
   return {id:uid(),date,userId:u.id||u.name,userName:u.name,unit:u.unit||'',team:u.team||'',group:u.group||'',role:u.role||'',productId:p.id||p.code||p.name,productName:p.name,productCode:p.code||'',premium:premiumValue,currency:String(p.currency||'TWD').toUpperCase(),usdRate:rate,twdPremium:twd,originalWeighted:twd*originalWeight,contestWeighted:twd*contestWeight,ahWeighted:p.ah?twd*contestWeight:0,createdAt:new Date().toISOString()};
 }
 
-function init(){
-  applyTheme(); bindNav(); fillSelects(); fillCompetitionPersonSelector(); bindForms(); renderAll(); renderAdmin(); bindCloudStatus();
-  connectCloud();
+async function init(){
+  bindNav(); bindForms(); bindCloudStatus();
+  setCloudStatus({status:'checking',message:'正在載入 Firebase 正式資料'});
+  await connectCloud(false,true);
+  normalizeState({persist:false});
+  applyTheme(); fillSelects(); fillCompetitionPersonSelector(); renderAll(); renderAdmin();
 }
 function bindCloudStatus(){
   window.addEventListener('peak:firebase-status',e=>setCloudStatus(e.detail||{}));
   const el=document.getElementById('cloudSyncStatus');
-  if(el) el.onclick=()=>connectCloud(true);
+  if(el) el.onclick=()=>connectCloud(true,false);
 }
 function setCloudStatus(detail={}){
   const el=document.getElementById('cloudSyncStatus'); if(!el)return;
   const text={checking:'⏳ 連線中',connected:'☁️ 已連線',syncing:'↻ 同步中',synced:'✅ 已同步',error:'⚠️ 離線備援'}[detail.status]||'☁️ 本機備援';
   el.textContent=text; el.className=`cloud-status ${detail.status||'offline'}`; el.title=detail.message||'點擊重新連線';
 }
-async function connectCloud(force=false){
+async function connectCloud(force=false,initialLoad=false){
   const el=document.getElementById('cloudSyncStatus'); if(el&&force)el.textContent='⏳ 重新連線';
-  const result=await window.PeakFirebaseService?.connect?.(state);
+  const result=await window.PeakFirebaseService?.connect?.(state,{initialLoad});
   if(result?.state){
-    state={...JSON.parse(JSON.stringify(demo)),...result.state};
-    normalizeState();
+    state={...emptyState(),...result.state};
+    normalizeState({persist:false});
     localStorage.setItem(LS_KEY,JSON.stringify(state));
-    applyTheme(); fillSelects(); fillCompetitionPersonSelector(); renderAll(); renderAdmin();
-    toast('已載入 Firebase 雲端資料');
+    if(!initialLoad){applyTheme();fillSelects();fillCompetitionPersonSelector();renderAll();renderAdmin();toast(`已載入 Firebase：人員 ${state.users.length} 位`);}
+  }else if(initialLoad){
+    // Firebase 暫時無法使用時，才使用目前裝置的本機備援。
+    normalizeState({persist:false});
   }
+  return result;
 }
 
 function bindNav(){document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>showPage(b.dataset.page));document.querySelectorAll('[data-admin-tab]').forEach(b=>b.onclick=()=>{showPage('admin');currentAdmin=b.dataset.adminTab;renderAdmin();});document.querySelectorAll('.admin-tab').forEach(b=>b.onclick=()=>{currentAdmin=b.dataset.admin;renderAdmin();});document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');rankMode=b.dataset.rank;renderTop5();});document.addEventListener('click',e=>{if(!e.target.closest('.autocomplete-field'))document.querySelectorAll('.autocomplete-menu').forEach(x=>x.hidden=true);});}
