@@ -438,7 +438,9 @@ function competitionTarget(c,role,metric){
 }
 function competitionStatus(c,user){
   const sales=competitionSales(c,user); const rows=[];
-  ['weighted','premium','ah'].forEach(metric=>{if(!c.metrics?.[metric]?.enabled)return;const target=competitionTarget(c,user?.role,metric);const done=c.manualEnabled?Number(c.manualValues?.[metric]||0):competitionMetricValue(metric,sales);rows.push({metric,target,done,configured:target>0,rate:target?Math.min(done/target*100,100):0,met:target>0&&done>=target});});
+  // 個人競賽進度必須永遠以報件統計為準，才能與個人排行榜完全同步。
+  // manualEnabled / manualValues 僅保留給通訊處（office）進度使用，避免舊資料中的手動值覆蓋個人實際業績。
+  ['weighted','premium','ah'].forEach(metric=>{if(!c.metrics?.[metric]?.enabled)return;const target=competitionTarget(c,user?.role,metric);const done=(c.scope==='office'&&c.manualEnabled)?Number(c.manualValues?.[metric]||0):competitionMetricValue(metric,sales);rows.push({metric,target,done,configured:target>0,rate:target?Math.min(done/target*100,100):0,met:target>0&&done>=target});});
   const extra=(c.extraConditions||[]).filter(x=>x.enabled!==false).map(x=>{const bonusLike={start:c.start,deadline:c.end,metric:x.metric||'count',target:Number(x.target||0),category:x.category||'',subcategory:x.subcategory||'',products:x.products||'',ahOnly:!!x.ahOnly,protectionOnly:!!x.protectionOnly,roles:x.roles||''};const result=bonusValue(bonusLike,sales,user);return {metric:x.label||bonusMetricLabel(x.metric),target:Number(x.target||0),done:result.value,rate:x.target?Math.min(result.value/Number(x.target)*100,100):0,met:Number(x.target)>0&&result.value>=Number(x.target),extra:true};});
   const all=[...rows,...extra]; const achieved=all.length?(c.logic==='OR'?all.some(x=>x.met):all.every(x=>x.met)):false;
   return {rows:all,achieved};
