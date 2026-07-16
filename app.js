@@ -393,12 +393,48 @@ function competitionSales(c,user){
 }
 
 // 唯一的個人競賽統計核心：本人業績 + 直屬業代業績；件數永遠只算本人。
-function isSalesAgentRole(role){return ['業代','新進業代','特定新進業代'].includes(norm(role));}
-function isSupervisorRole(role){return ['主任','新進主任'].includes(norm(role));}
+function isSalesAgentRole(role){
+  const r=norm(role);
+  const supervisorWords=['經理','襄理','主任'];
+  return !supervisorWords.some(word=>r.includes(word))&&(r.includes('業代')||r.includes('業務員')||r.includes('業務代表'));
+}
+function isSupervisorRole(role){
+  // 主管可能是經理、襄理、主任、新科主任、業務主任等。
+  const r=norm(role);
+  return ['經理','襄理','主任'].some(word=>r.includes(word));
+}
 function findDirectSupervisor(user){
-  if(!user||!isSalesAgentRole(user.role)||!norm(user.group))return null;
-  const candidates=state.users.filter(x=>x.active!==false&&String(x.id)!==String(user.id)&&norm(x.group)===norm(user.group)&&isSupervisorRole(x.role));
-  return candidates.find(x=>norm(user.group).includes(norm(x.name)))||candidates[0]||null;
+  if(!user||!isSalesAgentRole(user.role))return null;
+  const group=norm(user.group),team=norm(user.team),unit=norm(user.unit);
+  const supervisors=state.users.filter(x=>x.active!==false&&String(x.id)!==String(user.id)&&isSupervisorRole(x.role));
+  if(!supervisors.length)return null;
+
+  const namedMatch=(items,label)=>items.find(x=>{
+    const name=norm(x.name),supervisorGroup=norm(x.group),supervisorUnit=norm(x.unit);
+    return (name&&label.includes(name))||
+      (supervisorGroup&&(label.includes(supervisorGroup)||supervisorGroup.includes(label)))||
+      (supervisorUnit&&(label.includes(supervisorUnit)||supervisorUnit.includes(label)));
+  });
+
+  // 1. 「某某組的業代」先歸給同組主管。
+  if(group){
+    const exactGroup=supervisors.filter(x=>norm(x.group)===group);
+    if(exactGroup.length===1)return exactGroup[0];
+    const groupNamed=namedMatch(exactGroup.length?exactGroup:supervisors,group);
+    if(groupNamed)return groupNamed;
+  }
+
+  // 2. 「某某區的業代」歸給同區主管；同區多人時再用姓名／組別判斷。
+  if(unit){
+    const exactUnit=supervisors.filter(x=>norm(x.unit)===unit);
+    if(exactUnit.length===1)return exactUnit[0];
+    const unitNamed=namedMatch(exactUnit.length?exactUnit:supervisors,unit);
+    if(unitNamed)return unitNamed;
+  }
+
+  // 3. 最後僅在同隊伍只剩唯一主管時才自動歸屬，避免重複或錯加。
+  const sameTeam=supervisors.filter(x=>!team||norm(x.team)===team);
+  return sameTeam.length===1?sameTeam[0]:null;
 }
 function salesInCompetitionRange(c){
   return state.sales.filter(s=>(!c?.start||s.date>=c.start)&&(!c?.end||s.date<=c.end));
