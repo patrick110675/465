@@ -1,5 +1,5 @@
 const LS_KEY='peakCompetitionV211';
-const APP_VERSION='OFFICIAL-R3';
+const APP_VERSION='STABLE-RECOVERY-20260716';
 const fmt=n=>(Number(n)||0).toLocaleString('zh-TW',{maximumFractionDigits:0});
 const pct=n=>`${Math.round((Number(n)||0)*100)}%`;
 const today=()=>new Date().toISOString().slice(0,10);
@@ -48,12 +48,56 @@ demo.sales=[
 ].filter(Boolean);
 
 let state=load();
-let cloudHydrated=false;
-let cloudConnecting=false;
 normalizeState();
 let pendingImport=[];
 let rankMode='person';
 let currentAdmin='people';
+
+let cloudReady=false;
+const DEMO_USER_NAMES=new Set(['張永朋','林志明','蔡汪霖','陳澄任','黃金鳳','李雅萍','王小明','李大華']);
+const DEMO_PRODUCT_CODES=new Set(['BVA3','UBVA2','20(G)WEHS','10(S)ACUPL','20(G)HLTC','小園保']);
+function deepClone(v){return JSON.parse(JSON.stringify(v??null));}
+function isDemoUsers(rows){return Array.isArray(rows)&&rows.length>0&&rows.length<=8&&rows.every(x=>DEMO_USER_NAMES.has(norm(x.name)));}
+function isDemoProducts(rows){return Array.isArray(rows)&&rows.length>0&&rows.length<=6&&rows.every(x=>DEMO_PRODUCT_CODES.has(norm(x.code||x.name)));}
+function isDemoSales(rows){return Array.isArray(rows)&&rows.length>0&&rows.length<=8&&rows.every(x=>DEMO_USER_NAMES.has(norm(x.userName)));}
+function mergeUnique(base,extra,keyFn){const out=[];const seen=new Set();[...(base||[]),...(extra||[])].forEach(x=>{if(!x)return;const k=String(keyFn(x)||'').trim();if(!k||seen.has(k))return;seen.add(k);out.push(deepClone(x));});return out;}
+function saleKey(s){return [s.id||'',s.date||'',s.userName||'',s.productCode||s.productName||'',Number(s.premium||0)].join('|');}
+function recoverySeed(){return window.PEAK_SEED_DATA||{};}
+function recoverCollections(source={}){
+  const seed=recoverySeed();
+  const users=(Array.isArray(source.users)&&source.users.length&&!isDemoUsers(source.users))?source.users:(seed.users||[]);
+  const products=(Array.isArray(source.products)&&source.products.length&&!isDemoProducts(source.products))?source.products:(seed.products||[]);
+  const sales=(Array.isArray(source.sales)&&source.sales.length&&!isDemoSales(source.sales))?source.sales:(seed.sales||[]);
+  return {
+    ...source,
+    users:mergeUnique(users,(!isDemoUsers(source.users)?source.users:[]),x=>x.name),
+    products:mergeUnique(products,(!isDemoProducts(source.products)?source.products:[]),x=>x.code||`${x.name}|${x.year}`),
+    rates:mergeUnique((source.rates&&source.rates.length?source.rates:(seed.rates||[])),[],x=>`${x.year}-${x.month}`),
+    sales:mergeUnique(sales,(!isDemoSales(source.sales)?source.sales:[]),saleKey)
+  };
+}
+function mergeRemoteState(local,remote){
+  const seed=recoverySeed();
+  const remoteSafe=recoverCollections(remote||{});
+  const localSafe=recoverCollections(local||{});
+  const chooseUsers=(remote?.users?.length&&!isDemoUsers(remote.users))?remote.users:localSafe.users;
+  const chooseProducts=(remote?.products?.length&&!isDemoProducts(remote.products))?remote.products:localSafe.products;
+  const chooseSales=(remote?.sales?.length&&!isDemoSales(remote.sales))?remote.sales:localSafe.sales;
+  return {
+    ...deepClone(localSafe),
+    ...deepClone(remote||{}),
+    settings:{...(localSafe.settings||{}),...(remote?.settings||{})},
+    users:mergeUnique(chooseUsers,localSafe.users,x=>x.name),
+    products:mergeUnique(chooseProducts,localSafe.products,x=>x.code||`${x.name}|${x.year}`),
+    rates:mergeUnique((remote?.rates?.length?remote.rates:localSafe.rates),localSafe.rates,x=>`${x.year}-${x.month}`),
+    sales:mergeUnique(chooseSales,localSafe.sales,saleKey),
+    competitions:(remote?.competitions?.length?deepClone(remote.competitions):deepClone(localSafe.competitions||seed.competitions||[])),
+    bonus:(remote?.bonus?.length?deepClone(remote.bonus):deepClone(localSafe.bonus||[])),
+    history:mergeUnique(remote?.history||[],localSafe.history||[],x=>x.id),
+    audit:mergeUnique(remote?.audit||[],localSafe.audit||[],x=>x.id),
+    trash:mergeUnique(remote?.trash||[],localSafe.trash||[],x=>x.id)
+  };
+}
 
 
 function normalizeState(){
@@ -128,30 +172,15 @@ function bonusValue(bonus,userSales,user){
 
 function load(){
   const raw=localStorage.getItem(LS_KEY);
-  if(raw){
-    try{return JSON.parse(raw);}catch(_e){}
-  }
-  // 新裝置不要把 8 位示範資料寫進本機或 Firebase。
-  // 若有內建正式資料，僅作離線畫面備援；雲端連線成功後仍以 Firebase 為準。
-  const seed=window.PEAK_SEED_DATA;
-  if(seed&&Array.isArray(seed.users)&&seed.users.length>20){
-    return {
-      settings:JSON.parse(JSON.stringify(demo.settings)),
-      users:JSON.parse(JSON.stringify(seed.users||[])),
-      products:JSON.parse(JSON.stringify(seed.products||[])),
-      rates:JSON.parse(JSON.stringify(seed.rates||[])),
-      competitions:JSON.parse(JSON.stringify(seed.competitions||[])),
-      bonus:[],sales:JSON.parse(JSON.stringify(seed.sales||[])),history:[],audit:[],trash:[]
-    };
-  }
-  return JSON.parse(JSON.stringify(demo));
+  if(raw){try{return recoverCollections(JSON.parse(raw));}catch(_e){}}
+  const seed=recoverySeed();
+  return recoverCollections({settings:deepClone(demo.settings),users:seed.users||[],products:seed.products||[],rates:seed.rates||[],sales:seed.sales||[],competitions:seed.competitions||demo.competitions,bonus:demo.bonus,history:[],audit:[],trash:[]});
 }
 function save(){
   state.settings=state.settings||{};
   state.settings.localUpdatedAt=new Date().toISOString();
   localStorage.setItem(LS_KEY,JSON.stringify(state));
-  // 只有完成雲端載入後，使用者的新變更才可同步；避免新裝置的示範／空資料覆蓋 Firebase。
-  if(cloudHydrated) window.PeakFirebaseService?.queueSync?.(state);
+  if(cloudReady) window.PeakFirebaseService?.queueSync?.(state);
 }
 
 window.PeakHomeAPI={
@@ -210,31 +239,18 @@ function setCloudStatus(detail={}){
   el.textContent=text; el.className=`cloud-status ${detail.status||'offline'}`; el.title=detail.message||'點擊重新連線';
 }
 async function connectCloud(force=false){
-  if(cloudConnecting) return;
-  cloudConnecting=true;
-  const el=document.getElementById('cloudSyncStatus');
-  if(el&&force)el.textContent='⏳ 重新連線';
-  try{
-    const result=await window.PeakFirebaseService?.connect?.(state);
-    if(result?.state){
-      const remote=result.state;
-      // Firebase 有正式核心資料時，一律以雲端為準，禁止 8 位示範名單覆蓋。
-      state={...JSON.parse(JSON.stringify(demo)),...remote};
-      normalizeState();
-      localStorage.setItem(LS_KEY,JSON.stringify(state));
-      cloudHydrated=true;
-      applyTheme(); fillSelects(); fillCompetitionPersonSelector(); renderAll(); renderAdmin();
-      toast(`已載入 Firebase：人員 ${state.users.length} 位`);
-    }else if(result?.connected){
-      // 雲端目前沒有資料時，才允許後續使用者儲存同步；不在初始化階段自動覆蓋。
-      cloudHydrated=true;
-      setCloudStatus({status:'connected',message:'Firebase 已連線'});
-    }else{
-      cloudHydrated=false;
-    }
-  }finally{
-    cloudConnecting=false;
-  }
+  const el=document.getElementById('cloudSyncStatus'); if(el&&force)el.textContent='⏳ 重新連線';
+  const result=await window.PeakFirebaseService?.connect?.(state);
+  if(!result?.connected){cloudReady=false;return;}
+  state=mergeRemoteState(state,result.state||{});
+  normalizeState();
+  localStorage.setItem(LS_KEY,JSON.stringify(state));
+  cloudReady=true;
+  applyTheme(); fillSelects(); fillCompetitionPersonSelector(); renderAll(); renderAdmin();
+  const counts=`人員 ${state.users.length} 位｜商品 ${state.products.length} 項｜業績 ${state.sales.length} 筆`;
+  toast(`已載入正式資料：${counts}`);
+  // 若雲端只有舊示範資料，將恢復後的正式資料補回雲端；不會用空白或 8 人資料覆蓋正式資料。
+  window.PeakFirebaseService?.syncNow?.(state);
 }
 
 function bindNav(){document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>showPage(b.dataset.page));document.querySelectorAll('[data-admin-tab]').forEach(b=>b.onclick=()=>{showPage('admin');currentAdmin=b.dataset.adminTab;renderAdmin();});document.querySelectorAll('.admin-tab').forEach(b=>b.onclick=()=>{currentAdmin=b.dataset.admin;renderAdmin();});document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');rankMode=b.dataset.rank;renderTop5();});document.addEventListener('click',e=>{if(!e.target.closest('.autocomplete-field'))document.querySelectorAll('.autocomplete-menu').forEach(x=>x.hidden=true);});}

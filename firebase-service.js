@@ -153,10 +153,10 @@
   }
 
   async function downloadAll() {
-    const names = [...new Set(Object.values(COLLECTION_MAP))];
+    const names = Object.values(COLLECTION_MAP);
     const [settingsDoc, ...rows] = await Promise.all([
       getDocument('settings', 'main'),
-      ...names.map(name => listCollection(name))
+      ...names.map(listCollection)
     ]);
     const collections = {};
     names.forEach((name, i) => { collections[name] = rows[i] || []; });
@@ -220,19 +220,10 @@
       const remote = await downloadAll();
       connected = true;
       lastError = '';
+      baseline = clone(remote || { settings: {}, users: [], products: [], rates: [], competitions: [], bonus: [], sales: [], history: [], audit: [], trash: [] });
       dispatch('connected', `已連線 ${cfg.projectId}`);
-
-      if (!remote) {
-        baseline = null;
-        await syncNow(localState);
-        return { connected: true, state: null, uploadedLocal: true };
-      }
-
-      baseline = clone(remote);
-      // 只要 Firebase 已有正式資料，初始化時一律下載雲端。
-      // 不再用新裝置本機時間判斷上傳，避免 8 位示範資料覆蓋 people。
-      dispatch('synced', '已載入 Firebase 雲端資料');
-      return { connected: true, state: remote, uploadedLocal: false };
+      if (remote) dispatch('synced', '已載入 Firebase 雲端資料');
+      return { connected: true, state: remote, emptyRemote: !remote };
     } catch (error) {
       connected = false;
       lastError = error?.name === 'AbortError' ? '連線逾時' : (error?.message || String(error));
