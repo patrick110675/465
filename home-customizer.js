@@ -20,6 +20,8 @@
   };
   let cfg=merge(window.PeakHomeAPI?.get?.()||{});
   let dirty=false;
+  let applying=false;
+  let observerTimer=0;
 
   function merge(raw){
     const kp=Array.isArray(raw.kpis)?raw.kpis:[];
@@ -30,7 +32,25 @@
       sections:[...sec,...defaults.sections.filter(x=>!sec.some(y=>y.id===x.id))].map(x=>({...defaults.sections.find(d=>d.id===x.id),...x}))
     };
   }
-  function persist(){window.PeakHomeAPI?.set?.(cfg);dirty=false;apply();updateSaveState();}
+  function persist(){
+    try{
+      window.PeakHomeAPI?.set?.(cfg);
+      dirty=false;
+      apply();
+      updateSaveState();
+      const btn=document.getElementById('saveHomeCustom');
+      if(btn){
+        const original=btn.textContent;
+        btn.textContent='✅ 已儲存並同步';
+        btn.disabled=true;
+        setTimeout(()=>{btn.disabled=false;updateSaveState();},900);
+      }
+    }catch(error){
+      console.error('儲存首頁配置失敗',error);
+      const btn=document.getElementById('saveHomeCustom');
+      if(btn){btn.textContent='⚠️ 儲存失敗，請再試一次';btn.disabled=false;}
+    }
+  }
   function markDirty(){dirty=true;updateSaveState();}
   function updateSaveState(){
     const btn=document.getElementById('saveHomeCustom');
@@ -38,26 +58,46 @@
     btn.classList.toggle('has-changes',dirty);
     btn.textContent=dirty?'💾 儲存首頁配置（尚未儲存）':'✅ 首頁配置已儲存';
   }
+  function sameOrder(parent,elements){
+    const wanted=elements.filter(Boolean);
+    const current=[...parent.children].filter(el=>wanted.includes(el));
+    return current.length===wanted.length && current.every((el,i)=>el===wanted[i]);
+  }
   function apply(){
-    const row=document.getElementById('dashboardKpiRow');
-    if(row){
-      cfg.kpis.forEach(item=>{
-        const value=document.getElementById(item.id);const card=value?.closest('.kpi');if(!card)return;
-        card.style.display=item.enabled===false?'none':'';
-        const icon=card.querySelector('.icon'),label=card.querySelector('span');
-        if(icon)icon.textContent=item.icon||'';if(label)label.textContent=item.label||'';
-        row.appendChild(card);
-      });
-    }
-    const host=document.getElementById('dashboardSections');
-    if(host){
-      cfg.sections.forEach(item=>{
-        const el=host.querySelector(`[data-home-section="${item.id}"]`);if(!el)return;
-        el.style.display=item.enabled===false?'none':'';host.appendChild(el);
-      });
-    }
-    const h=document.getElementById('pageTitle');if(h){h.style.fontSize=`${cfg.titleSize}px`;h.style.fontWeight=cfg.titleBold?'800':'500';}
-    document.getElementById('cloudSyncStatus')?.classList.add('cloud-compact');
+    if(applying)return;
+    applying=true;
+    try{
+      const row=document.getElementById('dashboardKpiRow');
+      if(row){
+        const cards=[];
+        cfg.kpis.forEach(item=>{
+          const value=document.getElementById(item.id);const card=value?.closest('.kpi');if(!card)return;
+          card.style.display=item.enabled===false?'none':'';
+          const icon=card.querySelector('.icon'),label=card.querySelector('span');
+          if(icon&&icon.textContent!==(item.icon||''))icon.textContent=item.icon||'';
+          if(label&&label.textContent!==(item.label||''))label.textContent=item.label||'';
+          cards.push(card);
+        });
+        if(!sameOrder(row,cards))cards.forEach(card=>row.appendChild(card));
+      }
+      const host=document.getElementById('dashboardSections');
+      if(host){
+        const sections=[];
+        cfg.sections.forEach(item=>{
+          const el=host.querySelector(`[data-home-section="${item.id}"]`);if(!el)return;
+          el.style.display=item.enabled===false?'none':'';
+          sections.push(el);
+        });
+        if(!sameOrder(host,sections))sections.forEach(el=>host.appendChild(el));
+      }
+      const h=document.getElementById('pageTitle');
+      if(h){
+        const size=`${cfg.titleSize}px`,weight=cfg.titleBold?'800':'500';
+        if(h.style.fontSize!==size)h.style.fontSize=size;
+        if(h.style.fontWeight!==weight)h.style.fontWeight=weight;
+      }
+      document.getElementById('cloudSyncStatus')?.classList.add('cloud-compact');
+    }finally{applying=false;}
   }
   function inject(force=false){
     const panel=document.getElementById('adminPanel');if(!panel)return;
@@ -104,7 +144,7 @@
     d.querySelectorAll('[data-kpi-label]').forEach(x=>x.oninput=()=>{cfg.kpis[+x.dataset.kpiLabel].label=x.value;markDirty();});
     d.querySelector('#titleSize').onchange=e=>{cfg.titleSize=+e.target.value;markDirty();};
     d.querySelector('#titleBold').onchange=e=>{cfg.titleBold=e.target.checked;markDirty();};
-    d.querySelector('#saveHomeCustom').onclick=()=>{persist();alert('首頁配置已儲存並同步');};
+    d.querySelector('#saveHomeCustom').onclick=()=>persist();
 
     enableSortable(se,'section');
     enableSortable(ke,'kpi');
@@ -181,6 +221,10 @@
   window.addEventListener('load',()=>{
     cfg=merge(window.PeakHomeAPI?.get?.()||cfg);apply();
     document.querySelectorAll('.admin-tab').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.admin==='dashboardSettings')setTimeout(()=>inject(),80)}));
-    new MutationObserver(()=>apply()).observe(document.getElementById('dashboard')||document.body,{childList:true,subtree:true});
+    const root=document.getElementById('dashboard')||document.body;
+    new MutationObserver(()=>{
+      clearTimeout(observerTimer);
+      observerTimer=setTimeout(()=>apply(),80);
+    }).observe(root,{childList:true,subtree:true});
   });
 })();
