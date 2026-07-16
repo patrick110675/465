@@ -365,12 +365,49 @@ function weightText(w){return Number(w)>=1?`${Number(w)*100}%`:`${Number(w)*100}
 function renderAll(){renderDashboard();renderDaily();renderRanking();renderHistory();fillSelects();}
 function salesOn(date=today()){return state.sales.filter(s=>s.date===date)}
 function sum(arr,key){return arr.reduce((a,b)=>a+(Number(b[key])||0),0)}
+
+// 個人業績統一計算：
+// 1. 業代報件的實收／原始加權／A&H／競賽加權，同步計入一位直屬主管。
+// 2. 件數永遠只計算本人實際報件，不會加到主管。
+// 3. 團隊、區單位、商品等總額仍使用原始報件，避免重複加總。
+function isAgentRole(role){return ['業代','新進業代','特定新進業代'].includes(String(role||'').trim());}
+function isSupervisorRole(role){return ['新進主任','主任','襄理','區經理'].includes(String(role||'').trim());}
+function supervisorRoleRank(role){return ({'新進主任':1,'主任':2,'襄理':3,'區經理':4})[String(role||'').trim()]||99;}
+function compactPersonName(name){return String(name||'').replace(/^./,'').replace(/\s/g,'');}
+function findDirectSupervisor(user){
+  if(!user||!isAgentRole(user.role))return null;
+  const sameGroup=state.users.filter(x=>x.active!==false&&x.id!==user.id&&isSupervisorRole(x.role)&&x.unit===user.unit&&x.group===user.group);
+  const sameUnit=state.users.filter(x=>x.active!==false&&x.id!==user.id&&isSupervisorRole(x.role)&&x.unit===user.unit);
+  const candidates=sameGroup.length?sameGroup:sameUnit.filter(x=>String(x.role)==='區經理');
+  if(!candidates.length)return null;
+  const group=String(user.group||'');
+  return [...candidates].sort((a,b)=>{
+    const am=compactPersonName(a.name),bm=compactPersonName(b.name);
+    const aMatch=am&&group.includes(am)?0:1,bMatch=bm&&group.includes(bm)?0:1;
+    return aMatch-bMatch||supervisorRoleRank(a.role)-supervisorRoleRank(b.role)||String(a.name).localeCompare(String(b.name),'zh-Hant');
+  })[0]||null;
+}
+function personalPerformanceSales(user,sales=state.sales){
+  if(!user)return [];
+  const own=sales.filter(s=>String(s.userId||'')===String(user.id)||s.userName===user.name);
+  const subordinateNames=new Set(state.users.filter(u=>findDirectSupervisor(u)?.id===user.id).map(u=>u.name));
+  if(!subordinateNames.size)return own;
+  return own.concat(sales.filter(s=>subordinateNames.has(s.userName)));
+}
+function personalPerformanceRow(user,sales=state.sales){
+  const own=sales.filter(s=>String(s.userId||'')===String(user.id)||s.userName===user.name);
+  const credited=personalPerformanceSales(user,sales);
+  return {name:user.name,userName:user.name,unit:user.unit||'',team:user.team||'',group:user.group||'',role:user.role||'',premium:sum(credited,'premium'),twdPremium:sum(credited,'twdPremium'),originalWeighted:sum(credited,'originalWeighted'),contestWeighted:sum(credited,'contestWeighted'),ahWeighted:sum(credited,'ahWeighted'),count:own.length};
+}
+function getPersonalPerformanceRows(sales=state.sales){
+  return state.users.filter(u=>u.active!==false).map(u=>personalPerformanceRow(u,sales)).filter(r=>r.count>0||r.twdPremium>0||r.contestWeighted>0||r.ahWeighted>0);
+}
 function renderDashboard(){
   competitionSubtitle.textContent=`${state.settings.banner}｜${formatCompetitionPeriod()}`;
   pageTitle.textContent=`${state.settings.platformTitle||'高峰競賽平台'} 👋`;
   document.getElementById('brandTitle')&&(document.getElementById('brandTitle').textContent=state.settings.platformTitle||'高峰競賽平台');
   const t=salesOn(today()); todayWeighted.textContent=fmt(sum(t,'contestWeighted')); todayPremium.textContent=fmt(sum(t,'twdPremium')); todayCount.textContent=`${t.length} 件`;
-  const star=[...aggregate(t,'userName')].sort((a,b)=>b.contestWeighted-a.contestWeighted)[0]; dailyStar.textContent=star?.name||'尚無'; dailyStarSub.textContent=star?`今日加權 ${fmt(star.contestWeighted)}`:'今日加權第一名';
+  const star=getPersonalPerformanceRows(t).sort((a,b)=>b.contestWeighted-a.contestWeighted||b.twdPremium-a.twdPremium)[0]; dailyStar.textContent=star?.name||'尚無'; dailyStarSub.textContent=star?`今日加權 ${fmt(star.contestWeighted)}`:'今日加權第一名';
   const officeCompetition=state.competitions.find(c=>c.active!==false&&c.scope==='office');
   if(officeCompetition){
     const metric=['weighted','premium','ah'].find(m=>officeCompetition.metrics?.[m]?.enabled)||'weighted';
@@ -389,8 +426,10 @@ function renderDashboard(){
   renderBonus(competitionSales({start:'',end:''},me),me); renderTop5(); renderLatest(); applyDashboardWidgets(); renderCustomDashboardCards();
 }
 function competitionSales(c,user){
-  return state.sales.filter(s=>s.userName===user?.name&&(!c.start||s.date>=c.start)&&(!c.end||s.date<=c.end));
+  const periodSales=state.sales.filter(s=>(!c.start||s.date>=c.start)&&(!c.end||s.date<=c.end));
+  return personalPerformanceSales(user,periodSales);
 }
+
 function competitionMetricValue(metric,sales){
   return metric==='weighted'?sum(sales,'contestWeighted'):metric==='premium'?sum(sales,'twdPremium'):metric==='ah'?sum(sales,'ahWeighted'):0;
 }
@@ -425,9 +464,9 @@ function renderBonus(mySales,me=selectedCompetitionPerson()){
 function renderTop5(){const rows=getRanking(rankMode).slice(0,5);top5Rows.innerHTML=rows.map((r,i)=>`<tr><td>${i<3?'👑 ':''}${i+1}</td><td>${r.name}</td><td class="num">${fmt(r.contestWeighted)}</td></tr>`).join('')||'<tr><td colspan="3" class="empty">尚無資料</td></tr>';}
 function renderLatest(){latestRows.innerHTML=salesOn(today()).slice(0,5).map(s=>`<tr><td>${new Date(s.createdAt).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'})}</td><td>${s.userName}</td><td>${s.productName}</td><td class="num">${fmt(s.contestWeighted)}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">今日尚無報件</td></tr>';}
 function aggregate(arr,key){const map=new Map();arr.forEach(s=>{const name=s[key]||'未分類';const r=map.get(name)||{name,twdPremium:0,originalWeighted:0,contestWeighted:0,ahWeighted:0,count:0};r.twdPremium+=s.twdPremium;r.originalWeighted+=s.originalWeighted;r.contestWeighted+=s.contestWeighted;r.ahWeighted+=s.ahWeighted;r.count++;map.set(name,r)});return [...map.values()];}
-function getRanking(type='person'){const key={person:'userName',unit:'unit',team:'team',group:'group',role:'role',product:'productName'}[type]||'userName';return aggregate(state.sales,key).sort((a,b)=>b.contestWeighted-a.contestWeighted);}
+function getRanking(type='person'){if(type==='person')return getPersonalPerformanceRows(state.sales).sort((a,b)=>b.contestWeighted-a.contestWeighted||b.twdPremium-a.twdPremium||a.name.localeCompare(b.name,'zh-Hant'));const key={unit:'unit',team:'team',group:'group',role:'role',product:'productName'}[type]||'userName';return aggregate(state.sales,key).sort((a,b)=>b.contestWeighted-a.contestWeighted);}
 function getDailyFiltered(){return state.sales.filter(s=>(!filterDate.value||s.date===filterDate.value)&&(!filterUnit.value||s.unit===filterUnit.value)&&(!filterTeam.value||s.team===filterTeam.value)&&(!filterRole.value||s.role===filterRole.value));}
-function getDailyAggRows(){return aggregate(getDailyFiltered(),'userName').sort((a,b)=>b.contestWeighted-a.contestWeighted)}
+function getDailyAggRows(){return getPersonalPerformanceRows(getDailyFiltered()).sort((a,b)=>b.contestWeighted-a.contestWeighted||b.twdPremium-a.twdPremium||a.name.localeCompare(b.name,'zh-Hant'))}
 function renderDaily(){const rows=getDailyAggRows();dailyRows.innerHTML=rows.map(r=>`<tr><td>${escapeHtml(r.name)}</td><td class="num">${fmt(r.contestWeighted)}</td><td class="num">${fmt(r.twdPremium)}</td><td class="num">${fmt(r.ahWeighted)}</td><td class="num">${fmt(r.originalWeighted)}</td><td class="row-actions"><button class="edit" onclick="showPersonDetail('${escapeJs(r.name)}')">明細</button><button class="edit" onclick="chooseSaleAction('${escapeJs(r.name)}','edit')">修改</button><button class="delete" onclick="chooseSaleAction('${escapeJs(r.name)}','delete')">刪除</button></td></tr>`).join('')||'<tr><td colspan="6" class="empty">此條件尚無資料</td></tr>';sumWeighted.textContent=fmt(sum(rows,'contestWeighted'));sumPremium.textContent=fmt(sum(rows,'twdPremium'));sumAH.textContent=fmt(sum(rows,'ahWeighted'));sumOriginal.textContent=fmt(sum(rows,'originalWeighted'));}
 function renderRanking(){const rows=getRanking(rankingType.value);rankingRows.innerHTML=rows.map((r,i)=>`<tr><td>${i+1}</td><td>${r.name}</td><td class="num">${fmt(r.twdPremium)}</td><td class="num">${fmt(r.originalWeighted)}</td><td class="num">${fmt(r.ahWeighted)}</td><td class="num"><b>${fmt(r.contestWeighted)}</b></td></tr>`).join('')||'<tr><td colspan="6" class="empty">尚無資料</td></tr>';}
 function filteredPersonSales(name){return getDailyFiltered().filter(s=>s.userName===name).sort((a,b)=>String(b.createdAt||b.date).localeCompare(String(a.createdAt||a.date)));}
