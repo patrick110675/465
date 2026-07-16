@@ -1,5 +1,5 @@
 const LS_KEY='peakCompetitionV211';
-const APP_VERSION='STABLE-RECOVERY-20260716';
+const APP_VERSION='OFFICIAL-FIXED-20260716';
 const fmt=n=>(Number(n)||0).toLocaleString('zh-TW',{maximumFractionDigits:0});
 const pct=n=>`${Math.round((Number(n)||0)*100)}%`;
 const today=()=>new Date().toISOString().slice(0,10);
@@ -365,49 +365,12 @@ function weightText(w){return Number(w)>=1?`${Number(w)*100}%`:`${Number(w)*100}
 function renderAll(){renderDashboard();renderDaily();renderRanking();renderHistory();fillSelects();}
 function salesOn(date=today()){return state.sales.filter(s=>s.date===date)}
 function sum(arr,key){return arr.reduce((a,b)=>a+(Number(b[key])||0),0)}
-
-// 個人業績統一計算：
-// 1. 業代報件的實收／原始加權／A&H／競賽加權，同步計入一位直屬主管。
-// 2. 件數永遠只計算本人實際報件，不會加到主管。
-// 3. 團隊、區單位、商品等總額仍使用原始報件，避免重複加總。
-function isAgentRole(role){return ['業代','新進業代','特定新進業代'].includes(String(role||'').trim());}
-function isSupervisorRole(role){return ['新進主任','主任','襄理','區經理'].includes(String(role||'').trim());}
-function supervisorRoleRank(role){return ({'新進主任':1,'主任':2,'襄理':3,'區經理':4})[String(role||'').trim()]||99;}
-function compactPersonName(name){return String(name||'').replace(/^./,'').replace(/\s/g,'');}
-function findDirectSupervisor(user){
-  if(!user||!isAgentRole(user.role))return null;
-  const sameGroup=state.users.filter(x=>x.active!==false&&x.id!==user.id&&isSupervisorRole(x.role)&&x.unit===user.unit&&x.group===user.group);
-  const sameUnit=state.users.filter(x=>x.active!==false&&x.id!==user.id&&isSupervisorRole(x.role)&&x.unit===user.unit);
-  const candidates=sameGroup.length?sameGroup:sameUnit.filter(x=>String(x.role)==='區經理');
-  if(!candidates.length)return null;
-  const group=String(user.group||'');
-  return [...candidates].sort((a,b)=>{
-    const am=compactPersonName(a.name),bm=compactPersonName(b.name);
-    const aMatch=am&&group.includes(am)?0:1,bMatch=bm&&group.includes(bm)?0:1;
-    return aMatch-bMatch||supervisorRoleRank(a.role)-supervisorRoleRank(b.role)||String(a.name).localeCompare(String(b.name),'zh-Hant');
-  })[0]||null;
-}
-function personalPerformanceSales(user,sales=state.sales){
-  if(!user)return [];
-  const own=sales.filter(s=>String(s.userId||'')===String(user.id)||s.userName===user.name);
-  const subordinateNames=new Set(state.users.filter(u=>findDirectSupervisor(u)?.id===user.id).map(u=>u.name));
-  if(!subordinateNames.size)return own;
-  return own.concat(sales.filter(s=>subordinateNames.has(s.userName)));
-}
-function personalPerformanceRow(user,sales=state.sales){
-  const own=sales.filter(s=>String(s.userId||'')===String(user.id)||s.userName===user.name);
-  const credited=personalPerformanceSales(user,sales);
-  return {name:user.name,userName:user.name,unit:user.unit||'',team:user.team||'',group:user.group||'',role:user.role||'',premium:sum(credited,'premium'),twdPremium:sum(credited,'twdPremium'),originalWeighted:sum(credited,'originalWeighted'),contestWeighted:sum(credited,'contestWeighted'),ahWeighted:sum(credited,'ahWeighted'),count:own.length};
-}
-function getPersonalPerformanceRows(sales=state.sales){
-  return state.users.filter(u=>u.active!==false).map(u=>personalPerformanceRow(u,sales)).filter(r=>r.count>0||r.twdPremium>0||r.contestWeighted>0||r.ahWeighted>0);
-}
 function renderDashboard(){
   competitionSubtitle.textContent=`${state.settings.banner}｜${formatCompetitionPeriod()}`;
   pageTitle.textContent=`${state.settings.platformTitle||'高峰競賽平台'} 👋`;
   document.getElementById('brandTitle')&&(document.getElementById('brandTitle').textContent=state.settings.platformTitle||'高峰競賽平台');
   const t=salesOn(today()); todayWeighted.textContent=fmt(sum(t,'contestWeighted')); todayPremium.textContent=fmt(sum(t,'twdPremium')); todayCount.textContent=`${t.length} 件`;
-  const star=getPersonalPerformanceRows(t).sort((a,b)=>b.contestWeighted-a.contestWeighted||b.twdPremium-a.twdPremium)[0]; dailyStar.textContent=star?.name||'尚無'; dailyStarSub.textContent=star?`今日加權 ${fmt(star.contestWeighted)}`:'今日加權第一名';
+  const star=[...aggregate(t,'userName')].sort((a,b)=>b.contestWeighted-a.contestWeighted)[0]; dailyStar.textContent=star?.name||'尚無'; dailyStarSub.textContent=star?`今日加權 ${fmt(star.contestWeighted)}`:'今日加權第一名';
   const officeCompetition=state.competitions.find(c=>c.active!==false&&c.scope==='office');
   if(officeCompetition){
     const metric=['weighted','premium','ah'].find(m=>officeCompetition.metrics?.[m]?.enabled)||'weighted';
@@ -426,21 +389,70 @@ function renderDashboard(){
   renderBonus(competitionSales({start:'',end:''},me),me); renderTop5(); renderLatest(); applyDashboardWidgets(); renderCustomDashboardCards();
 }
 function competitionSales(c,user){
-  const periodSales=state.sales.filter(s=>(!c.start||s.date>=c.start)&&(!c.end||s.date<=c.end));
-  return personalPerformanceSales(user,periodSales);
+  return state.sales.filter(s=>s.userName===user?.name&&(!c.start||s.date>=c.start)&&(!c.end||s.date<=c.end));
 }
 
+// 唯一的個人競賽統計核心：本人業績 + 直屬業代業績；件數永遠只算本人。
+function isSalesAgentRole(role){return ['業代','新進業代','特定新進業代'].includes(norm(role));}
+function isSupervisorRole(role){return ['主任','新進主任'].includes(norm(role));}
+function findDirectSupervisor(user){
+  if(!user||!isSalesAgentRole(user.role)||!norm(user.group))return null;
+  const candidates=state.users.filter(x=>x.active!==false&&String(x.id)!==String(user.id)&&norm(x.group)===norm(user.group)&&isSupervisorRole(x.role));
+  return candidates.find(x=>norm(user.group).includes(norm(x.name)))||candidates[0]||null;
+}
+function salesInCompetitionRange(c){
+  return state.sales.filter(s=>(!c?.start||s.date>=c.start)&&(!c?.end||s.date<=c.end));
+}
+function emptyPersonStat(user){return {id:user?.id||'',name:user?.name||'未分類',role:user?.role||'',unit:user?.unit||'',team:user?.team||'',group:user?.group||'',twdPremium:0,originalWeighted:0,contestWeighted:0,ahWeighted:0,count:0};}
+function addSaleToStat(stat,sale,includeCount=true){
+  stat.twdPremium+=Number(sale.twdPremium)||0;
+  stat.originalWeighted+=Number(sale.originalWeighted)||0;
+  stat.contestWeighted+=Number(sale.contestWeighted)||0;
+  stat.ahWeighted+=Number(sale.ahWeighted)||0;
+  if(includeCount)stat.count+=1;
+}
+function buildPersonCompetitionStats(sales){
+  const map=new Map();
+  state.users.filter(u=>u.active!==false).forEach(u=>map.set(String(u.id),emptyPersonStat(u)));
+  (sales||[]).forEach(sale=>{
+    const owner=findSaleUser(sale.userId)||findSaleUser(sale.userName);
+    if(!owner)return;
+    const ownerKey=String(owner.id);
+    if(!map.has(ownerKey))map.set(ownerKey,emptyPersonStat(owner));
+    addSaleToStat(map.get(ownerKey),sale,true);
+    const supervisor=findDirectSupervisor(owner);
+    if(supervisor){
+      const supervisorKey=String(supervisor.id);
+      if(!map.has(supervisorKey))map.set(supervisorKey,emptyPersonStat(supervisor));
+      addSaleToStat(map.get(supervisorKey),sale,false);
+    }
+  });
+  return [...map.values()];
+}
+function personCompetitionStat(c,user){
+  if(!user)return emptyPersonStat(null);
+  return buildPersonCompetitionStats(salesInCompetitionRange(c)).find(x=>String(x.id)===String(user.id))||emptyPersonStat(user);
+}
+function primaryCompetition(){
+  const personal=state.competitions.filter(c=>c.active!==false&&c.scope!=='office');
+  return personal.find(c=>norm(c.name)===norm(state.settings.banner))||personal[0]||{start:state.settings.competitionStart||'',end:state.settings.competitionEnd||''};
+}
+function rankingCompetition(){
+  const c=primaryCompetition();
+  return {start:c?.start||state.settings.competitionStart||'',end:c?.end||state.settings.competitionEnd||''};
+}
 function competitionMetricValue(metric,sales){
   return metric==='weighted'?sum(sales,'contestWeighted'):metric==='premium'?sum(sales,'twdPremium'):metric==='ah'?sum(sales,'ahWeighted'):0;
+}
+function competitionMetricFromStat(metric,stat){
+  return metric==='weighted'?Number(stat.contestWeighted||0):metric==='premium'?Number(stat.twdPremium||0):metric==='ah'?Number(stat.ahWeighted||0):0;
 }
 function competitionTarget(c,role,metric){
   return Number(c.targets?.[role]?.[metric]??c.targets?.['全員']?.[metric]??0);
 }
 function competitionStatus(c,user){
-  const sales=competitionSales(c,user); const rows=[];
-  // 個人競賽進度必須永遠以報件統計為準，才能與個人排行榜完全同步。
-  // manualEnabled / manualValues 僅保留給通訊處（office）進度使用，避免舊資料中的手動值覆蓋個人實際業績。
-  ['weighted','premium','ah'].forEach(metric=>{if(!c.metrics?.[metric]?.enabled)return;const target=competitionTarget(c,user?.role,metric);const done=(c.scope==='office'&&c.manualEnabled)?Number(c.manualValues?.[metric]||0):competitionMetricValue(metric,sales);rows.push({metric,target,done,configured:target>0,rate:target?Math.min(done/target*100,100):0,met:target>0&&done>=target});});
+  const sales=competitionSales(c,user); const stat=personCompetitionStat(c,user); const rows=[];
+  ['weighted','premium','ah'].forEach(metric=>{if(!c.metrics?.[metric]?.enabled)return;const target=competitionTarget(c,user?.role,metric);const done=c.manualEnabled?Number(c.manualValues?.[metric]||0):competitionMetricFromStat(metric,stat);rows.push({metric,target,done,configured:target>0,rate:target?Math.min(done/target*100,100):0,met:target>0&&done>=target});});
   const extra=(c.extraConditions||[]).filter(x=>x.enabled!==false).map(x=>{const bonusLike={start:c.start,deadline:c.end,metric:x.metric||'count',target:Number(x.target||0),category:x.category||'',subcategory:x.subcategory||'',products:x.products||'',ahOnly:!!x.ahOnly,protectionOnly:!!x.protectionOnly,roles:x.roles||''};const result=bonusValue(bonusLike,sales,user);return {metric:x.label||bonusMetricLabel(x.metric),target:Number(x.target||0),done:result.value,rate:x.target?Math.min(result.value/Number(x.target)*100,100):0,met:Number(x.target)>0&&result.value>=Number(x.target),extra:true};});
   const all=[...rows,...extra]; const achieved=all.length?(c.logic==='OR'?all.some(x=>x.met):all.every(x=>x.met)):false;
   return {rows:all,achieved};
@@ -466,24 +478,15 @@ function renderBonus(mySales,me=selectedCompetitionPerson()){
 function renderTop5(){const rows=getRanking(rankMode).slice(0,5);top5Rows.innerHTML=rows.map((r,i)=>`<tr><td>${i<3?'👑 ':''}${i+1}</td><td>${r.name}</td><td class="num">${fmt(r.contestWeighted)}</td></tr>`).join('')||'<tr><td colspan="3" class="empty">尚無資料</td></tr>';}
 function renderLatest(){latestRows.innerHTML=salesOn(today()).slice(0,5).map(s=>`<tr><td>${new Date(s.createdAt).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'})}</td><td>${s.userName}</td><td>${s.productName}</td><td class="num">${fmt(s.contestWeighted)}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">今日尚無報件</td></tr>';}
 function aggregate(arr,key){const map=new Map();arr.forEach(s=>{const name=s[key]||'未分類';const r=map.get(name)||{name,twdPremium:0,originalWeighted:0,contestWeighted:0,ahWeighted:0,count:0};r.twdPremium+=s.twdPremium;r.originalWeighted+=s.originalWeighted;r.contestWeighted+=s.contestWeighted;r.ahWeighted+=s.ahWeighted;r.count++;map.set(name,r)});return [...map.values()];}
-// 排行榜與「我的競賽進度」必須使用相同競賽期間。
-// 優先採用目前啟用的個人競賽；沒有設定時才顯示全部報件。
-function currentRankingCompetition(){
-  return state.competitions.find(c=>c.active!==false&&c.scope!=='office')||null;
-}
-function currentRankingSales(){
-  const c=currentRankingCompetition();
-  if(!c)return state.sales;
-  return state.sales.filter(s=>(!c.start||s.date>=c.start)&&(!c.end||s.date<=c.end));
-}
 function getRanking(type='person'){
-  const rankingSales=currentRankingSales();
-  if(type==='person')return getPersonalPerformanceRows(rankingSales).sort((a,b)=>b.contestWeighted-a.contestWeighted||b.twdPremium-a.twdPremium||a.name.localeCompare(b.name,'zh-Hant'));
+  const c=rankingCompetition();
+  const sales=salesInCompetitionRange(c);
+  if(type==='person')return buildPersonCompetitionStats(sales).filter(r=>r.twdPremium||r.originalWeighted||r.contestWeighted||r.ahWeighted||r.count).sort((a,b)=>b.contestWeighted-a.contestWeighted||b.twdPremium-a.twdPremium||a.name.localeCompare(b.name,'zh-Hant'));
   const key={unit:'unit',team:'team',group:'group',role:'role',product:'productName'}[type]||'userName';
-  return aggregate(rankingSales,key).sort((a,b)=>b.contestWeighted-a.contestWeighted);
+  return aggregate(sales,key).sort((a,b)=>b.contestWeighted-a.contestWeighted);
 }
 function getDailyFiltered(){return state.sales.filter(s=>(!filterDate.value||s.date===filterDate.value)&&(!filterUnit.value||s.unit===filterUnit.value)&&(!filterTeam.value||s.team===filterTeam.value)&&(!filterRole.value||s.role===filterRole.value));}
-function getDailyAggRows(){return getPersonalPerformanceRows(getDailyFiltered()).sort((a,b)=>b.contestWeighted-a.contestWeighted||b.twdPremium-a.twdPremium||a.name.localeCompare(b.name,'zh-Hant'))}
+function getDailyAggRows(){return aggregate(getDailyFiltered(),'userName').sort((a,b)=>b.contestWeighted-a.contestWeighted)}
 function renderDaily(){const rows=getDailyAggRows();dailyRows.innerHTML=rows.map(r=>`<tr><td>${escapeHtml(r.name)}</td><td class="num">${fmt(r.contestWeighted)}</td><td class="num">${fmt(r.twdPremium)}</td><td class="num">${fmt(r.ahWeighted)}</td><td class="num">${fmt(r.originalWeighted)}</td><td class="row-actions"><button class="edit" onclick="showPersonDetail('${escapeJs(r.name)}')">明細</button><button class="edit" onclick="chooseSaleAction('${escapeJs(r.name)}','edit')">修改</button><button class="delete" onclick="chooseSaleAction('${escapeJs(r.name)}','delete')">刪除</button></td></tr>`).join('')||'<tr><td colspan="6" class="empty">此條件尚無資料</td></tr>';sumWeighted.textContent=fmt(sum(rows,'contestWeighted'));sumPremium.textContent=fmt(sum(rows,'twdPremium'));sumAH.textContent=fmt(sum(rows,'ahWeighted'));sumOriginal.textContent=fmt(sum(rows,'originalWeighted'));}
 function renderRanking(){const rows=getRanking(rankingType.value);rankingRows.innerHTML=rows.map((r,i)=>`<tr><td>${i+1}</td><td>${r.name}</td><td class="num">${fmt(r.twdPremium)}</td><td class="num">${fmt(r.originalWeighted)}</td><td class="num">${fmt(r.ahWeighted)}</td><td class="num"><b>${fmt(r.contestWeighted)}</b></td></tr>`).join('')||'<tr><td colspan="6" class="empty">尚無資料</td></tr>';}
 function filteredPersonSales(name){return getDailyFiltered().filter(s=>s.userName===name).sort((a,b)=>String(b.createdAt||b.date).localeCompare(String(a.createdAt||a.date)));}
