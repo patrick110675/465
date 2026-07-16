@@ -431,10 +431,8 @@ function buildPersonCompetitionStats(sales){
 }
 function personCompetitionStat(c,user){
   if(!user)return emptyPersonStat(null);
-  // 個人競賽進度與排行榜共用『全部正式報件』統計，避免匯入舊業績因日期被排除。
-  return buildPersonCompetitionStats(state.sales).find(x=>String(x.id)===String(user.id))||emptyPersonStat(user);
+  return buildPersonCompetitionStats(salesInCompetitionRange(c)).find(x=>String(x.id)===String(user.id))||emptyPersonStat(user);
 }
-
 function primaryCompetition(){
   const personal=state.competitions.filter(c=>c.active!==false&&c.scope!=='office');
   return personal.find(c=>norm(c.name)===norm(state.settings.banner))||personal[0]||{start:state.settings.competitionStart||'',end:state.settings.competitionEnd||''};
@@ -481,8 +479,8 @@ function renderTop5(){const rows=getRanking(rankMode).slice(0,5);top5Rows.innerH
 function renderLatest(){latestRows.innerHTML=salesOn(today()).slice(0,5).map(s=>`<tr><td>${new Date(s.createdAt).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'})}</td><td>${s.userName}</td><td>${s.productName}</td><td class="num">${fmt(s.contestWeighted)}</td></tr>`).join('')||'<tr><td colspan="4" class="empty">今日尚無報件</td></tr>';}
 function aggregate(arr,key){const map=new Map();arr.forEach(s=>{const name=s[key]||'未分類';const r=map.get(name)||{name,twdPremium:0,originalWeighted:0,contestWeighted:0,ahWeighted:0,count:0};r.twdPremium+=s.twdPremium;r.originalWeighted+=s.originalWeighted;r.contestWeighted+=s.contestWeighted;r.ahWeighted+=s.ahWeighted;r.count++;map.set(name,r)});return [...map.values()];}
 function getRanking(type='person'){
-  // 排行榜維持原本全部正式報件口徑；不可因競賽起日而讓既有第一名消失。
-  const sales=state.sales;
+  const c=rankingCompetition();
+  const sales=salesInCompetitionRange(c);
   if(type==='person')return buildPersonCompetitionStats(sales).filter(r=>r.twdPremium||r.originalWeighted||r.contestWeighted||r.ahWeighted||r.count).sort((a,b)=>b.contestWeighted-a.contestWeighted||b.twdPremium-a.twdPremium||a.name.localeCompare(b.name,'zh-Hant'));
   const key={unit:'unit',team:'team',group:'group',role:'role',product:'productName'}[type]||'userName';
   return aggregate(sales,key).sort((a,b)=>b.contestWeighted-a.contestWeighted);
