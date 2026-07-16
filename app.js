@@ -278,21 +278,51 @@ function canonicalRoles(){
 }
 function fillCompetitionPersonSelector(){
   const person=document.getElementById('competitionPerson'); if(!person)return;
+  const search=document.getElementById('competitionPersonSearch');
+  const menu=document.getElementById('competitionPersonSuggestions');
   const unit=document.getElementById('competitionUnit'),team=document.getElementById('competitionTeam'),group=document.getElementById('competitionGroup');
   const keep=state.settings.selectedCompetitionPersonId;
   const fill=(el,values,label)=>{const old=el.value;el.innerHTML=`<option value="">${label}</option>`+values.map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');if(values.includes(old))el.value=old;};
   fill(unit,[...new Set(state.users.map(x=>x.unit).filter(Boolean))],'全部區單位');
   fill(team,[...new Set(state.users.map(x=>x.team).filter(Boolean))],'全部隊伍');
   fill(group,[...new Set(state.users.map(x=>x.group).filter(Boolean))],'全部組別');
+
+  const filteredRows=()=>state.users.filter(u=>(!unit.value||u.unit===unit.value)&&(!team.value||u.team===team.value)&&(!group.value||u.group===group.value)&&u.active!==false);
+  const selectPerson=(id,shouldSave=true)=>{
+    const row=state.users.find(u=>String(u.id)===String(id));
+    if(!row)return;
+    person.value=String(row.id);
+    state.settings.selectedCompetitionPersonId=String(row.id);
+    if(search)search.value=row.name;
+    if(menu)menu.hidden=true;
+    if(shouldSave)save();else localStorage.setItem(LS_KEY,JSON.stringify(state));
+    renderDashboard();
+  };
+  const drawSuggestions=()=>{
+    if(!search||!menu)return;
+    const q=norm(search.value).toLowerCase();
+    const rows=filteredRows().filter(u=>!q||[u.name,u.unit,u.team,u.group,u.role].some(v=>norm(v).toLowerCase().includes(q))).slice(0,30);
+    menu.innerHTML=rows.map(u=>`<button type="button" data-competition-person="${escapeHtml(String(u.id))}"><b>${escapeHtml(u.name)}</b><small>${escapeHtml([u.unit,u.team,u.role].filter(Boolean).join('｜'))}</small></button>`).join('')||'<div class="autocomplete-empty">找不到符合的人員</div>';
+    menu.hidden=false;
+    menu.querySelectorAll('[data-competition-person]').forEach(b=>b.onclick=()=>selectPerson(b.dataset.competitionPerson));
+  };
   const redraw=()=>{
-    const rows=state.users.filter(u=>(!unit.value||u.unit===unit.value)&&(!team.value||u.team===team.value)&&(!group.value||u.group===group.value)&&u.active!==false);
+    const rows=filteredRows();
     const selected=person.value||keep||rows[0]?.id||'';
     person.innerHTML=rows.map(u=>`<option value="${escapeHtml(String(u.id))}">${escapeHtml(u.name)}｜${escapeHtml(u.role||'未設定')}</option>`).join('');
-    if(rows.some(u=>String(u.id)===String(selected)))person.value=selected;
-    state.settings.selectedCompetitionPersonId=person.value||''; localStorage.setItem(LS_KEY,JSON.stringify(state)); renderDashboard();
+    const finalId=rows.some(u=>String(u.id)===String(selected))?selected:(rows[0]?.id||'');
+    if(finalId)selectPerson(finalId,false);
+    else{state.settings.selectedCompetitionPersonId='';if(search)search.value='';renderDashboard();}
+    if(search&&document.activeElement===search)drawSuggestions();
   };
   [unit,team,group].forEach(el=>el.onchange=redraw);
-  person.onchange=()=>{state.settings.selectedCompetitionPersonId=person.value;save();renderDashboard();};
+  person.onchange=()=>selectPerson(person.value);
+  if(search&&menu){
+    search.onfocus=drawSuggestions;
+    search.oninput=drawSuggestions;
+    search.onkeydown=e=>{if(e.key==='Escape')menu.hidden=true;if(e.key==='Enter'){e.preventDefault();const first=menu.querySelector('[data-competition-person]');if(first)first.click();}};
+    document.addEventListener('click',e=>{if(!search.contains(e.target)&&!menu.contains(e.target))menu.hidden=true;});
+  }
   redraw();
 }
 function selectedCompetitionPerson(){

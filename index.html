@@ -56,7 +56,7 @@
 
           <article class="card home-section" id="dashboardOfficeCard" data-home-section="office" data-home-title="通訊處進度"><h2>🎯 通訊處進度</h2><div class="progress-meta"><span>本月目標 <b id="officeTarget">40,000,000</b></span><span>已完成 <b id="officeDone">0</b></span><span class="danger">還差 <b id="officeRemain">0</b></span></div><div class="progress"><i id="officeBar"></i></div><p>達成率 <b id="officeRate">0%</b></p></article>
 
-          <article class="card home-section" id="competitionBlock" data-home-section="competition" data-home-title="我的競賽進度"><div class="section-head"><h2>🏆 我的競賽進度</h2><select id="competitionPerson"></select></div><div class="competition-person-filters"><select id="competitionUnit"><option value="">全部區單位</option></select><select id="competitionTeam"><option value="">全部隊伍</option></select><select id="competitionGroup"><option value="">全部組別</option></select></div><div id="competitionProgressCards" class="competition-progress-grid"></div></article>
+          <article class="card home-section" id="competitionBlock" data-home-section="competition" data-home-title="我的競賽進度"><div class="section-head"><h2>🏆 我的競賽進度</h2></div><div class="autocomplete-field"><input id="competitionPersonSearch" autocomplete="off" placeholder="輸入姓名關鍵字（打一個字即可搜尋）"><div id="competitionPersonSuggestions" class="autocomplete-menu" hidden></div></div><select id="competitionPerson" hidden aria-hidden="true"></select><div class="competition-person-filters"><select id="competitionUnit"><option value="">全部區單位</option></select><select id="competitionTeam"><option value="">全部隊伍</option></select><select id="competitionGroup"><option value="">全部組別</option></select></div><div id="competitionProgressCards" class="competition-progress-grid"></div></article>
 
           <article class="card home-section" id="bonusBlock" data-home-section="bonus" data-home-title="我的獎勵活動"><h2>🎁 我的獎勵活動</h2><div id="bonusCards" class="stack"></div></article>
           <article class="card home-section" id="top5Block" data-home-section="top5" data-home-title="排行榜 Top 5"><h2>🏆 排行榜 Top 5</h2><div class="tabs"><button class="tab active" data-rank="person">個人</button><button class="tab" data-rank="team">隊伍</button><button class="tab" data-rank="product">商品</button></div><table><thead><tr><th>名次</th><th>名稱</th><th>加權</th></tr></thead><tbody id="top5Rows"></tbody></table><button class="link-btn" data-page="ranking">查看更多排行榜〉</button></article>
@@ -110,6 +110,6 @@
   <script src="firebase-config.js?v=official-20260716"></script>
   <script src="seed-data.js?v=official-20260716"></script>
   <script src="firebase-service.js?v=stable-recovery-20260716"></script>
-  <script src="app.js?v=stable-recovery-20260716"></script>
+  <script src="app.js?v=competition-person-search-20260716"></script>
 </body>
 </html>
