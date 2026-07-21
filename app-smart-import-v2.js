@@ -1,4 +1,4 @@
-console.info("新高峰智慧匯入模組 v3 2026-07-20 已載入");
+console.info("新高峰智慧匯入模組 v4 2026-07-21 已載入");
 const LS_KEY='peakCompetitionV211';
 const APP_VERSION='OFFICIAL-FIXED-BONUS-PERSON-20260717';
 const fmt=n=>(Number(n)||0).toLocaleString('zh-TW',{maximumFractionDigits:0});
@@ -734,15 +734,27 @@ function findImportUser(name,unit='',team='',group=''){
     ||sameName.find(x=>u&&compactImportKey(x.unit)===u)
     ||sameName[0];
 }
+function normalizeImportProductAlias(value){
+  const raw=cleanImportText(value);
+  const key=compactImportKey(raw);
+  if(!key)return {raw,key:'',canonical:'',matched:false};
+  // 只處理已確認的公司商品命名差異，避免過度模糊配對。
+  if(key==='增額UBVA')return {raw,key,canonical:'UBVA',matched:true,rule:'增額UBVA → UBVA'};
+  // 年期最多 30 年；10(G)HRLTC3／20(G)HRLTC3／30(G)HRLTC3 均歸類 HRLTC。
+  if(/^(10G|20G|30G)HRLTC3$/.test(key))return {raw,key,canonical:'HRLTC',matched:true,rule:`${raw} → HRLTC`};
+  return {raw,key,canonical:raw,matched:false};
+}
 function findImportProduct(name,code=''){
-  const inputs=[name,code].map(compactImportKey).filter(Boolean);
+  const aliases=[normalizeImportProductAlias(name),normalizeImportProductAlias(code)];
+  const inputs=aliases.flatMap(a=>[a.raw,a.canonical]).map(compactImportKey).filter(Boolean);
   if(!inputs.length)return null;
   const exact=state.products.find(p=>{const keys=[p.name,p.code].map(compactImportKey).filter(Boolean);return inputs.some(i=>keys.includes(i));});
-  if(exact)return exact;
-  return state.products.find(p=>{
+  if(exact)return {product:exact,alias:aliases.find(a=>a.matched)||null};
+  const fuzzy=state.products.find(p=>{
     const keys=[p.name,p.code].map(compactImportKey).filter(Boolean);
     return inputs.some(i=>keys.some(k=>i.length>=4&&k.length>=4&&(i.includes(k)||k.includes(i))));
   })||null;
+  return fuzzy?{product:fuzzy,alias:aliases.find(a=>a.matched)||null}:null;
 }
 function saleImportKey(data){const timestamp=String(data.sourceTimestamp||'').trim();if(timestamp)return `ts|${timestamp}|${data.userName}|${data.productName}`;return ['row',data.date,data.userName,data.productCode||data.productName,Number(data.premium||0),Number(data.twdPremium||0),Number(data.contestWeighted||0)].join('|');}
 function mapImportedSale(row,rowIndex=0){
@@ -757,8 +769,9 @@ function mapImportedSale(row,rowIndex=0){
   const user=findImportUser(name,unit,team,group);
   if(!user)return {error:`找不到人員：${name}`,rowNumber:rowIndex+2,raw:row};
   if(!productName&&!productCode)return {error:'缺少商品名稱',rowNumber:rowIndex+2,raw:row};
-  const prod=findImportProduct(productName,productCode);
-  if(!prod)return {error:`找不到商品：${productName||productCode}`,rowNumber:rowIndex+2,raw:row};
+  const productMatch=findImportProduct(productName,productCode);
+  if(!productMatch)return {error:`找不到商品：${productName||productCode}`,rowNumber:rowIndex+2,raw:row};
+  const prod=productMatch.product;
   const date=toDate(importGet(row,'e投保上傳日期','報件日期','日期','報件日','上傳日期','時間戳記'));
   const rawPremium=importNumber(importGet(row,'保費','原始保費','原始保費(外幣)'));
   if(rawPremium<=0)return {error:'保費必須大於 0',rowNumber:rowIndex+2,raw:row};
@@ -775,6 +788,7 @@ function mapImportedSale(row,rowIndex=0){
   sale.sourceTimestamp=String(importGet(row,'時間戳記','Timestamp')||'');
   sale.importSource=pendingImportMeta.fileName||'Excel';sale.importSheet=pendingImportMeta.sheetName||'';sale.importKey=saleImportKey(sale);sale.createdAt=new Date().toISOString();
   sale.importDisplay={name,unit,team,group,product:productName||productCode};
+  if(productMatch.alias){sale.importProductOriginal=productMatch.alias.raw;sale.importProductAlias=productMatch.alias.canonical;sale.importAliasRule=productMatch.alias.rule;}
   return sale;
 }
 
@@ -792,11 +806,47 @@ function renderImportPreview(){
   const ok=mapped.filter(r=>!r.error&&!r.skip).length-duplicates;
   const errorSamples=errors.slice(0,8).map(r=>`<tr><td>⚠️ 第 ${r.rowNumber||'?'} 列：${escapeHtml(r.error)}</td></tr>`).join('');
   const okSamples=mapped.filter(r=>!r.error&&!r.skip).slice(0,5).map(r=>`<tr><td>✅ ${escapeHtml([r.date,r.userName,r.productName,fmt(r.twdPremium||0),fmt(r.contestWeighted||0)].filter(Boolean).join('｜'))}</td></tr>`).join('');
-  importPreview.innerHTML=`<div class="card"><h3>智慧匯入預覽 v3</h3><p>檔案：${escapeHtml(pendingImportMeta.fileName||'')}｜工作表：<b>${escapeHtml(pendingImportMeta.sheetName||'')}</b></p><p><b>可匯入 ${Math.max(ok,0)} 筆</b>｜錯誤 ${errors.length} 筆｜重複 ${duplicates} 筆｜公式列略過 ${skipped.length} 筆</p><table><tbody>${okSamples}${errorSamples||''}</tbody></table>${errors.length?'<p class="muted">錯誤會分別顯示人員或商品名稱；平台內部 p_ 編號不參與辨識，也不會顯示。</p>':''}</div>`;
+  const aliasCounts={};mapped.filter(r=>!r.error&&!r.skip&&r.importAliasRule).forEach(r=>aliasCounts[r.importAliasRule]=(aliasCounts[r.importAliasRule]||0)+1);
+  const aliasSummary=Object.entries(aliasCounts).map(([rule,count])=>`<li>${escapeHtml(rule)}（${count} 筆）</li>`).join('');
+  pendingImportMeta.aliasCounts=aliasCounts;
+  importPreview.innerHTML=`<div class="card"><h3>智慧匯入預覽 v4</h3><p>檔案：${escapeHtml(pendingImportMeta.fileName||'')}｜工作表：<b>${escapeHtml(pendingImportMeta.sheetName||'')}</b></p><p><b>可匯入 ${Math.max(ok,0)} 筆</b>｜錯誤 ${errors.length} 筆｜重複 ${duplicates} 筆｜公式列略過 ${skipped.length} 筆</p>${aliasSummary?`<div class="notice"><b>商品智慧對應</b><ul>${aliasSummary}</ul></div>`:''}<table><tbody>${okSamples}${errorSamples||''}</tbody></table>${errors.length?'<p class="muted">錯誤會分別顯示人員或商品名稱；平台內部 p_ 編號不參與辨識，也不會顯示。</p>':''}</div>`;
   const confirmBtn=document.getElementById('confirmImport');if(confirmBtn)confirmBtn.disabled=ok<=0;
 }
 
-function executeConfirmedImport(){const type=document.getElementById('importType')?.value||'sales';const all=(pendingImportMeta.mapped?.length?pendingImportMeta.mapped:pendingImport.map((r,i)=>mapRow(r,type,i)));const mapped=all.filter(r=>!r.error&&!r.skip).filter(r=>type!=='people'||r.name).filter(r=>type!=='products'||r.name);const collection={people:'users',products:'products',rates:'rates',sales:'sales',bonus:'bonus',competitions:'competitions'}[type];let added=0,updated=0,skipped=0;mapped.forEach(item=>{let existing=null;if(type==='people')existing=state.users.find(x=>x.name===item.name);if(type==='products')existing=state.products.find(x=>(x.code&&item.code&&x.code===item.code)||(!item.code&&x.name===item.name&&String(x.year)===String(item.year)));if(type==='rates')existing=state.rates.find(x=>x.year===item.year&&x.month===item.month);if(type==='sales'){const key=item.importKey||saleImportKey(item);existing=state.sales.find(x=>(x.importKey&&x.importKey===key)||saleImportKey(x)===key);if(existing&&item.sourceTimestamp){Object.assign(existing,item,{id:existing.id,createdAt:existing.createdAt||item.createdAt});updated++;return;}if(existing){skipped++;return;}}if(existing){Object.assign(existing,item,{id:existing.id});updated++;}else{state[collection].push(item);added++;}});log('智慧匯入資料',`${type} 新增 ${added} 更新 ${updated} 跳過 ${skipped} 錯誤 ${all.filter(x=>x.error).length}`);if(type==='competitions')state.competitions=migrateCompetitions(state.competitions);save();fillSelects();fillCompetitionPersonSelector();fillBonusPersonSelector();renderAll();renderAdmin();toast(`匯入完成：新增 ${added}，更新 ${updated}，重複跳過 ${skipped}`);}
+function executeConfirmedImport(){
+  const type=document.getElementById('importType')?.value||'sales';
+  const all=(pendingImportMeta.mapped?.length?pendingImportMeta.mapped:pendingImport.map((r,i)=>mapRow(r,type,i)));
+  const mapped=all.filter(r=>!r.error&&!r.skip).filter(r=>type!=='people'||r.name).filter(r=>type!=='products'||r.name);
+  const collection={people:'users',products:'products',rates:'rates',sales:'sales',bonus:'bonus',competitions:'competitions'}[type];
+  let added=0,updated=0,skipped=0;
+  mapped.forEach(item=>{
+    let existing=null;
+    if(type==='people')existing=state.users.find(x=>x.name===item.name);
+    if(type==='products')existing=state.products.find(x=>(x.code&&item.code&&x.code===item.code)||(!item.code&&x.name===item.name&&String(x.year)===String(item.year)));
+    if(type==='rates')existing=state.rates.find(x=>x.year===item.year&&x.month===item.month);
+    if(type==='sales'){
+      const key=item.importKey||saleImportKey(item);
+      existing=state.sales.find(x=>(x.importKey&&x.importKey===key)||saleImportKey(x)===key);
+      if(existing&&item.sourceTimestamp){Object.assign(existing,item,{id:existing.id,createdAt:existing.createdAt||item.createdAt});updated++;return;}
+      if(existing){skipped++;return;}
+    }
+    if(existing){Object.assign(existing,item,{id:existing.id});updated++;}
+    else{state[collection].push(item);added++;}
+  });
+  const errorCount=all.filter(x=>x.error).length;
+  const formulaSkipped=all.filter(x=>x.skip).length;
+  const aliasCounts=pendingImportMeta.aliasCounts||{};
+  const aliasText=Object.entries(aliasCounts).map(([rule,count])=>`${rule}（${count}筆）`).join('、');
+  log('智慧匯入資料',`${type} 新增 ${added} 更新 ${updated} 重複跳過 ${skipped} 錯誤 ${errorCount} 公式略過 ${formulaSkipped}${aliasText?` 商品對應：${aliasText}`:''}`);
+  if(type==='competitions')state.competitions=migrateCompetitions(state.competitions);
+  save();fillSelects();fillCompetitionPersonSelector();fillBonusPersonSelector();renderAll();renderAdmin();
+  const summary=`匯入完成：新增 ${added}，更新 ${updated}，重複跳過 ${skipped}，錯誤 ${errorCount}，公式列略過 ${formulaSkipped}${aliasText?`；商品智慧對應：${aliasText}`:''}`;
+  toast(summary);
+  const preview=document.getElementById('importPreview');
+  if(preview)preview.innerHTML=`<div class="card"><h3>✅ 匯入完成</h3><p>${escapeHtml(summary)}</p><p class="muted">本次紀錄已寫入平台操作紀錄。</p></div>`;
+  const confirmBtn=document.getElementById('confirmImport');if(confirmBtn)confirmBtn.disabled=true;
+}
+
 function downloadTemplateFile(type){const templates={people:[{姓名:'張永朋',區單位:'素伶區',隊伍:'靛隊',組別:'永朋組',職級:'主任'}],products:[{商品名稱:'BVA',商品代碼:'BVA3',年期:'躉繳',幣別:'TWD',原始加權:'5%',競賽加權:'5%',商品類別:'ILP'},{商品名稱:'WEHS 20年',商品代碼:'20(G)WEHS',年期:'20',幣別:'TWD',原始加權:'300%',競賽加權:'300%',商品類別:'Health'}],rates:[{年度:2026,月份:7,美金匯率:31.57333}],sales:[{日期:today(),姓名:'張永朋',商品:'BVA',保費:500000}],bonus:[{活動名稱:'醫療險衝刺獎',開始日期:'2026-07-01',截止日期:'2026-07-31',累計欄位:'加權計績',目標:300000,獎金:5000,商品大類:'Health',指定商品:'WEHS','只抓A&H':'否',只抓保障型:'否',適用職級:'主任,業代',首頁顯示:'是'}],competitions:[{競賽名稱:'新高峰',開始日期:'2026-07-02',結束日期:'2026-12-15',職級:'主任',加權目標:2650000,實收目標:20000000,'A&H目標':0,獎勵:'日本關西'}]};exportRows(`${type}_template`,templates[type]);}
 
 function exportRows(name,rows){const ws=XLSX.utils.json_to_sheet(rows);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'資料');XLSX.writeFile(wb,`${name}.xlsx`)}
